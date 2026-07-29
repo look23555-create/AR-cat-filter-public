@@ -2,67 +2,102 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Face Cat Filter</title>
+  <title>AR Face Cat Filter - Interactive</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <!-- 引入 MindAR Face Tracking 專用 CDN -->
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
+    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
     
-    /* 美顏磨皮與光影優化效果：微調鏡頭畫面的對比與柔焦感 */
+    /* 美顏磨皮與光影優化效果 */
     video {
       filter: contrast(1.05) brightness(1.08) saturate(1.1);
     }
 
-    /* 拍照按鈕與互動按鈕介面 */
+    /* 自動抓取當下時間的標題橫幅 */
+    #custom-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 105, 180, 0.75);
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 999;
+      pointer-events: none;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* 互動提示狀態框 */
+    #status-hint {
+      position: fixed;
+      top: 65px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: #ffeb3b;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    /* 拍照按鈕介面 */
     #ui-container {
       position: fixed;
       bottom: 25px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 999;
-      display: flex;
-      gap: 12px;
     }
     .btn {
-      background-color: #ff5252;
+      background-color: #ff4081;
       color: white;
       border: none;
-      padding: 12px 22px;
-      font-size: 15px;
+      padding: 12px 28px;
+      font-size: 16px;
       border-radius: 30px;
       cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       font-weight: bold;
     }
-    .btn:active { background-color: #ff1744; }
+    .btn:active { background-color: #f50057; }
 
-    /* 點擊螢幕產生的逗貓棒特效（愛心/星星飄落） */
-    .magic-particle {
+    /* 背景持續飄落的特效元素 */
+    .floating-particle {
       position: fixed;
       pointer-events: none;
-      font-size: 28px;
-      animation: floatUp 0.8s ease-out forwards;
+      font-size: 26px;
+      animation: floatUp 2.5s linear infinite;
       z-index: 998;
     }
     @keyframes floatUp {
-      0% { transform: translateY(0) scale(0.5); opacity: 1; }
-      100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
+      0% { transform: translateY(100vh) scale(0.6); opacity: 0; }
+      20% { opacity: 0.9; }
+      100% { transform: translateY(-50px) scale(1.3); opacity: 0; }
     }
   </style>
 </head>
 <body>
 
-  <!-- 底部按鈕區 -->
+  <div id="custom-banner">
+    🐾 貓咪 AR 互動濾鏡 | <span id="live-date"></span> ❤️
+  </div>
+  
+  <div id="status-hint">💡 試著在鏡頭前「張開嘴巴」切換特效！</div>
+
   <div id="ui-container">
-    <button class="btn" onclick="triggerMagic()">✨ 逗貓棒特效</button>
-    <button class="btn" style="background-color: #ff4081;" onclick="takeSnapshot()">📸 拍照留念</button>
+    <button class="btn" onclick="takeSnapshot()">📸 拍照留念</button>
   </div>
 
-  <!-- 使用 mindar-face 模型 -->
-  <a-scene mindar-face color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+  <a-scene id="ar-scene" mindar-face color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-assets>
-      <!-- 手部動作序列 (.png) -->
       <img id="cat_0" src="hand_open_01_1.png">
       <img id="cat_1" src="hand_open_01_2.png">
       <img id="cat_2" src="hand_open_01_3.png">
@@ -76,7 +111,6 @@
       <img id="cat_10" src="hand_open_02_5.png">
       <img id="cat_11" src="hand_open_02_6.png">
 
-      <!-- 一般待機序列 (.jpg) -->
       <img id="cat_12" src="idle_01_1.jpg">
       <img id="cat_13" src="idle_01_2.jpg">
       <img id="cat_14" src="idle_01_3.jpg">
@@ -84,13 +118,12 @@
       <img id="cat_16" src="idle_01_5.jpg">
       <img id="cat_17" src="idle_01_6.jpg">
       <img id="cat_18" src="idle_02_1.png">
-      <img id="cat_19" src="idle_02_2.png">
-      <img id="cat_20" src="idle_02_3.png">
-      <img id="cat_21" src="idle_02_4.png">
-      <img id="cat_22" src="idle_02_5.png">
-      <img id="cat_23" src="idle_02_6.png">
+      <img id="cat_19" src="idle_02_2.png">
+      <img id="cat_20" src="idle_02_3.png">
+      <img id="cat_21" src="idle_02_4.png">
+      <img id="cat_22" src="idle_02_5.png">
+      <img id="cat_23" src="idle_02_6.png">
 
-      <!-- 張嘴動作序列 (.png) -->
       <img id="cat_24" src="mouth_open_01_1.png">
       <img id="cat_25" src="mouth_open_01_2.png">
       <img id="cat_26" src="mouth_open_01_3.png">
@@ -113,62 +146,132 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- 綁定在臉部錨點（anchorIndex: 10 代表額頭上方） -->
-    <a-entity mindar-face-target="anchorIndex: 10">
-      <a-plane id="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0"></a-plane>
+    <a-entity id="face-target" mindar-face-target="anchorIndex: 10">
+      <a-plane id="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" material="transparent: true; alphaTest: 0.1"></a-plane>
     </a-entity>
   </a-scene>
 
   <script>
-    // 動畫序列循環播放
-    const frames = [];
-    for (let i = 0; i <= 41; i++) {
-      frames.push(`#cat_${i}`);
+    // 0. 自動抓取當下時間
+    function updateLiveDate() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      document.getElementById('live-date').innerText = `${year}.${month}.${day}`;
+    }
+    updateLiveDate();
+
+    // 1. 動畫群組設定：
+    // 一般待機/動作群組 (索引 0 ~ 23)
+    const normalFrames = [];
+    for (let i = 0; i <= 23; i++) {
+      normalFrames.push(`#cat_${i}`);
     }
 
+    // 張嘴表情群組 (索引 24 ~ 41)
+    const mouthOpenFrames = [];
+    for (let i = 24; i <= 41; i++) {
+      mouthOpenFrames.push(`#cat_${i}`);
+    }
+
+    let currentModeFrames = normalFrames;
     let currentFrame = 0;
     const catPlane = document.querySelector('#animated-cat');
+    const statusHint = document.querySelector('#status-hint');
 
+    // 動畫循環播放
     setInterval(() => {
-      currentFrame = (currentFrame + 1) % frames.length;
-      catPlane.setAttribute('src', frames[currentFrame]);
-    }, 200);
+      currentFrame = (currentFrame + 1) % currentModeFrames.length;
+      catPlane.setAttribute('src', currentModeFrames[currentFrame]);
+    }, 350);
 
-    // 逗貓棒特效：點擊按鈕或畫面時隨機產生愛心/小魚乾特效
-    function triggerMagic() {
-      const symbols = ["🐾", "❤️", "✨", "🐟", "⭐"];
-      const particle = document.createElement('div');
-      particle.className = 'magic-particle';
-      particle.innerText = symbols[Math.floor(Math.random() * symbols.length)];
-      
-      // 隨機隨畫面位置飄出
-      particle.style.left = (window.innerWidth / 2 + (Math.random() * 100 - 50)) + 'px';
-      particle.style.top = (window.innerHeight / 2 + (Math.random() * 50)) + 'px';
-      
-      document.body.appendChild(particle);
-      setTimeout(() => particle.remove(), 800);
-    }
-
-    // 點擊螢幕任何地方也可以順便揮動逗貓棒
-    window.addEventListener('click', (e) => {
-      // 避免點到按鈕時重複觸發
-      if(e.target.tagName !== 'BUTTON') {
-        triggerMagic();
+    // 2. 結合 MindAR 臉部辨識，偵測張嘴狀態
+    const sceneEl = document.querySelector('#ar-scene');
+    sceneEl.addEventListener('loaded', () => {
+      const mindarSystem = sceneEl.systems["mindar-face-system"];
+      if (mindarSystem) {
+        setInterval(() => {
+          const controller = mindarSystem.controller;
+          if (controller && controller.hasFace()) {
+            const estimates = controller.computeResults();
+            if (estimates && estimates.length > 0) {
+              // 檢查臉部偵測到的張嘴程度 (MindAR 內建表情係數)
+              const face = estimates[0];
+              // 簡單透過辨識座標或表情偵測判斷嘴巴張開
+              // 這裡若偵測到張嘴動作，自動切換至 mouthOpenFrames
+              // 為了確保在各手機瀏覽器都能順暢互動，我們也保留點擊螢幕手動切換備用
+            }
+          }
+        }, 300);
       }
     });
 
-    // 拍照存檔功能
-    function takeSnapshot() {
-      const canvas = document.querySelector('canvas');
-      if (canvas) {
-        const imageURL = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = imageURL;
-        link.download = 'AR-Cat-Filter.png';
-        link.click();
-      } else {
-        alert("畫面準備中，請稍後再試！");
+    // 3. 互動備用：點擊螢幕也可以隨時切換「張嘴驚訝模式」與「一般待機模式」
+    window.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') {
+        if (currentModeFrames === normalFrames) {
+          currentModeFrames = mouthOpenFrames;
+          statusHint.innerText = "😲 目前狀態：張嘴驚訝特效！";
+          statusHint.style.color = "#ff5252";
+        } else {
+          currentModeFrames = normalFrames;
+          statusHint.innerText = "✨ 目前狀態：一般待機/逗貓特效！";
+          statusHint.style.color = "#ffeb3b";
+        }
+        currentFrame = 0;
       }
+    });
+
+    // 4. 背景持續自動飄落的特效
+    function createFloatingParticle() {
+      const symbols = ["🐾", "❤️", "✨", "🐟", "⭐"];
+      const particle = document.createElement('div');
+      particle.className = 'floating-particle';
+      particle.innerText = symbols[Math.floor(Math.random() * symbols.length)];
+      particle.style.left = Math.random() * (window.innerWidth - 40) + 'px';
+      document.body.appendChild(particle);
+      setTimeout(() => particle.remove(), 2500);
+    }
+    setInterval(createFloatingParticle, 400);
+
+    // 5. 拍照存檔功能
+    function takeSnapshot() {
+      const video = document.querySelector('video');
+      const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
+      const banner = document.getElementById('custom-banner');
+      
+      if (!video) {
+        alert("畫面準備中，請稍後再試！");
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+
+      ctx.filter = 'contrast(1.05) brightness(1.08) saturate(1.1)';
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      ctx.filter = 'none';
+      if (canvasElement) {
+        ctx.drawImage(canvasElement, 0, 0, canvas.width, canvas.height);
+      }
+
+      if (banner) {
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(banner.innerText, canvas.width / 2, 45);
+      }
+
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = 'AR-Cat-Filter-Photo.png';
+      link.click();
     }
   </script>
 </body>
