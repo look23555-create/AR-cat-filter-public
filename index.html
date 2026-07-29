@@ -12,32 +12,53 @@
   <!-- 使用 mindar-face 模型 -->
   <a-scene mindar-face color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-assets>
+      <!-- 手部動作序列 -->
       <img id="cat_0" src="hand_open_01_1.png">
       <img id="cat_1" src="hand_open_01_2.png">
       <img id="cat_2" src="hand_open_01_3.png">
-      <img id="cat_2" src="hand_open_01_4.png">
-      <img id="cat_2" src="hand_open_01_5.png">
-      <img id="cat_2" src="hand_open_01_6.png">
-      <img id="cat_0" src="hand_open_02_1.png">
-      <img id="cat_1" src="hand_open_02_2.png">
-      <img id="cat_2" src="hand_open_02_3.png">
-      <img id="cat_2" src="hand_open_02_4.png">
-      <img id="cat_2" src="hand_open_02_5.png">
-      <img id="cat_2" src="hand_open_02_6.png">
-      <img id="cat_3" src="idle_01_1.jpg">
-      <img id="cat_4" src="idle_01_2.jpg">
-      <img id="cat_4" src="idle_01_3.jpg">
-      <img id="cat_4" src="idle_01_4.jpg">
-      <img id="cat_4" src="idle_01_5.jpg">
-      <img id="cat_4" src="idle_01_6.jpg">
-      <img id="cat_3" src="idle_02_1.jpg">
-      <img id="cat_4" src="idle_02_2.jpg">
-      <img id="cat_4" src="idle_02_3.jpg">
-      <img id="cat_4" src="idle_02_4.jpg">
-      <img id="cat_4" src="idle_02_5.jpg">
-      <img id="cat_4" src="idle_02_6.jpg">
-      <img id="cat_5" src="mouth_open_01_1.png">
-      <img id="cat_5" src="mouth_open_01_2.png">
+      <img id="cat_3" src="hand_open_01_4.png">
+      <img id="cat_4" src="hand_open_01_5.png">
+      <img id="cat_5" src="hand_open_01_6.png">
+      <img id="cat_6" src="hand_open_02_1.png">
+      <img id="cat_7" src="hand_open_02_2.png">
+      <img id="cat_8" src="hand_open_02_3.png">
+      <img id="cat_9" src="hand_open_02_4.png">
+      <img id="cat_10" src="hand_open_02_5.png">
+      <img id="cat_11" src="hand_open_02_6.png">
+
+      <!-- 一般待機序列 -->
+      <img id="cat_12" src="idle_01_1.jpg">
+      <img id="cat_13" src="idle_01_2.jpg">
+      <img id="cat_14" src="idle_01_3.jpg">
+      <img id="cat_15" src="idle_01_4.jpg">
+      <img id="cat_16" src="idle_01_5.jpg">
+      <img id="cat_17" src="idle_01_6.jpg">
+      <img id="cat_18" src="idle_02_1.jpg">
+      <img id="cat_19" src="idle_02_2.jpg">
+      <img id="cat_20" src="idle_02_3.jpg">
+      <img id="cat_21" src="idle_02_4.jpg">
+      <img id="cat_22" src="idle_02_5.jpg">
+      <img id="cat_23" src="idle_02_6.jpg">
+
+      <!-- 張嘴動作序列 -->
+      <img id="cat_24" src="mouth_open_01_1.png">
+      <img id="cat_25" src="mouth_open_01_2.png">
+      <img id="cat_26" src="mouth_open_01_3.png">
+      <img id="cat_27" src="mouth_open_01_4.png">
+      <img id="cat_28" src="mouth_open_01_5.png">
+      <img id="cat_29" src="mouth_open_01_6.png">
+      <img id="cat_30" src="mouth_open_02_1.png">
+      <img id="cat_31" src="mouth_open_02_2.png">
+      <img id="cat_32" src="mouth_open_02_3.png">
+      <img id="cat_33" src="mouth_open_02_4.png">
+      <img id="cat_34" src="mouth_open_02_5.png">
+      <img id="cat_35" src="mouth_open_02_6.png">
+      <img id="cat_36" src="mouth_open_03_1.png">
+      <img id="cat_37" src="mouth_open_03_2.png">
+      <img id="cat_38" src="mouth_open_03_3.png">
+      <img id="cat_39" src="mouth_open_03_4.png">
+      <img id="cat_40" src="mouth_open_03_5.png">
+      <img id="cat_41" src="mouth_open_03_6.png">
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -49,11 +70,16 @@
   </a-scene>
 
   <script>
-    const frames = ["#cat_0", "#cat_1", "#cat_2", "#cat_3", "#cat_4", "#cat_5"];
+    // 自動把 0 到 41 張圖全部串成一個流暢的動畫清單
+    const frames = [];
+    for (let i = 0; i <= 41; i++) {
+      frames.push(`#cat_${i}`);
+    }
+
     let currentFrame = 0;
     const catPlane = document.querySelector('#animated-cat');
 
-    // 每 100 毫秒自動播放動畫序列
+    // 每 100 毫秒自動循環播放動畫序列
     setInterval(() => {
       currentFrame = (currentFrame + 1) % frames.length;
       catPlane.setAttribute('src', frames[currentFrame]);
