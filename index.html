@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR Face Cat Filter</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- 引入 MindAR Face Tracking 專用 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
+  <style>body { margin: 0; overflow: hidden; }</style>
+</head>
+<body>
+  <!-- 使用 mindar-face 模型 -->
+  <a-scene mindar-face color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-assets>
+      <img id="cat_0" src="./clean_file_r0_c0.png">
+      <img id="cat_1" src="./clean_file_r0_c1.png">
+      <img id="cat_2" src="./clean_file_r0_c2.png">
+      <img id="cat_3" src="./clean_file_r1_c0.png">
+      <img id="cat_4" src="./clean_file_r1_c1.png">
+      <img id="cat_5" src="./clean_file_r1_c2.png">
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- 綁定在臉部錨點（anchorIndex: 10 代表額頭上方或帽子位置） -->
+    <a-entity mindar-face-target="anchorIndex: 10">
+      <a-plane id="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0"></a-plane>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    const frames = ["#cat_0", "#cat_1", "#cat_2", "#cat_3", "#cat_4", "#cat_5"];
+    let currentFrame = 0;
+    const catPlane = document.querySelector('#animated-cat');
+
+    // 每 100 毫秒自動播放動畫序列
+    setInterval(() => {
+      currentFrame = (currentFrame + 1) % frames.length;
+      catPlane.setAttribute('src', frames[currentFrame]);
+    }, 100);
+  </script>
+</body>
+</html>
