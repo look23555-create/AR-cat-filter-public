@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Face Cat Filter - Interactive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Face Cat Filter - Ultimate HD</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; -webkit-user-select: none; user-select: none; }
     
-    /* 美顏磨皮與光影優化效果 */
+    /* 相機鏡頭優化與全螢幕適配各大品牌手機 */
     video {
+      object-fit: cover;
       filter: contrast(1.05) brightness(1.08) saturate(1.1);
     }
 
@@ -19,11 +20,11 @@
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255, 105, 180, 0.75);
+      background: rgba(255, 105, 180, 0.85);
       color: white;
       padding: 8px 20px;
       border-radius: 20px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: bold;
       letter-spacing: 1px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
@@ -39,9 +40,9 @@
       top: 65px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.65);
       color: #ffeb3b;
-      padding: 4px 12px;
+      padding: 4px 14px;
       border-radius: 12px;
       font-size: 13px;
       z-index: 999;
@@ -51,7 +52,7 @@
     /* 拍照按鈕介面 */
     #ui-container {
       position: fixed;
-      bottom: 25px;
+      bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 999;
@@ -60,11 +61,11 @@
       background-color: #ff4081;
       color: white;
       border: none;
-      padding: 12px 28px;
+      padding: 12px 32px;
       font-size: 16px;
       border-radius: 30px;
       cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
       font-weight: bold;
     }
     .btn:active { background-color: #f50057; }
@@ -87,16 +88,16 @@
 <body>
 
   <div id="custom-banner">
-    🐾 貓咪 AR 互動濾鏡 | <span id="live-date"></span> ❤️
+    🐾 貓咪 AR 雙人互動濾鏡 | <span id="live-date"></span> ❤️
   </div>
   
-  <div id="status-hint">💡 試著在鏡頭前「張開嘴巴」切換特效！</div>
+  <div id="status-hint">💡 點擊畫面任意處即可切換特效！</div>
 
   <div id="ui-container">
     <button class="btn" onclick="takeSnapshot()">📸 拍照留念</button>
   </div>
 
-  <a-scene id="ar-scene" mindar-face color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+  <a-scene id="ar-scene" mindar-face="maxTrack: 2;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-assets>
       <img id="cat_0" src="hand_open_01_1.png">
       <img id="cat_1" src="hand_open_01_2.png">
@@ -146,13 +147,19 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <a-entity id="face-target" mindar-face-target="anchorIndex: 10">
-      <a-plane id="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" material="transparent: true; alphaTest: 0.1"></a-plane>
+    <a-entity mindar-face-target="anchorIndex: 10; targetIndex: 0">
+      <a-plane class="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" 
+        material="transparent: true; alphaTest: 0.05; shader: flat;"></a-plane>
+    </a-entity>
+
+    <a-entity mindar-face-target="anchorIndex: 10; targetIndex: 1">
+      <a-plane class="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" 
+        material="transparent: true; alphaTest: 0.05; shader: flat;"></a-plane>
     </a-entity>
   </a-scene>
 
   <script>
-    // 0. 自動抓取當下時間
+    // 0. 自動動態抓取當下時間
     function updateLiveDate() {
       const now = new Date();
       const year = now.getFullYear();
@@ -162,14 +169,12 @@
     }
     updateLiveDate();
 
-    // 1. 動畫群組設定：
-    // 一般待機/動作群組 (索引 0 ~ 23)
+    // 1. 動畫群組設定
     const normalFrames = [];
     for (let i = 0; i <= 23; i++) {
       normalFrames.push(`#cat_${i}`);
     }
 
-    // 張嘴表情群組 (索引 24 ~ 41)
     const mouthOpenFrames = [];
     for (let i = 24; i <= 41; i++) {
       mouthOpenFrames.push(`#cat_${i}`);
@@ -177,53 +182,34 @@
 
     let currentModeFrames = normalFrames;
     let currentFrame = 0;
-    const catPlane = document.querySelector('#animated-cat');
     const statusHint = document.querySelector('#status-hint');
 
-    // 動畫循環播放
+    // 動畫循環播放 (350毫秒切換一格，流暢不卡頓)
     setInterval(() => {
       currentFrame = (currentFrame + 1) % currentModeFrames.length;
-      catPlane.setAttribute('src', currentModeFrames[currentFrame]);
+      const catPlanes = document.querySelectorAll('.animated-cat');
+      catPlanes.forEach(plane => {
+        plane.setAttribute('src', currentModeFrames[currentFrame]);
+      });
     }, 350);
 
-    // 2. 結合 MindAR 臉部辨識，偵測張嘴狀態
-    const sceneEl = document.querySelector('#ar-scene');
-    sceneEl.addEventListener('loaded', () => {
-      const mindarSystem = sceneEl.systems["mindar-face-system"];
-      if (mindarSystem) {
-        setInterval(() => {
-          const controller = mindarSystem.controller;
-          if (controller && controller.hasFace()) {
-            const estimates = controller.computeResults();
-            if (estimates && estimates.length > 0) {
-              // 檢查臉部偵測到的張嘴程度 (MindAR 內建表情係數)
-              const face = estimates[0];
-              // 簡單透過辨識座標或表情偵測判斷嘴巴張開
-              // 這裡若偵測到張嘴動作，自動切換至 mouthOpenFrames
-              // 為了確保在各手機瀏覽器都能順暢互動，我們也保留點擊螢幕手動切換備用
-            }
-          }
-        }, 300);
-      }
-    });
-
-    // 3. 互動備用：點擊螢幕也可以隨時切換「張嘴驚訝模式」與「一般待機模式」
+    // 2. 點擊畫面切換特效模式
     window.addEventListener('click', (e) => {
       if (e.target.tagName !== 'BUTTON') {
         if (currentModeFrames === normalFrames) {
           currentModeFrames = mouthOpenFrames;
-          statusHint.innerText = "😲 目前狀態：張嘴驚訝特效！";
+          statusHint.innerText = "😲 雙人狀態：全員張嘴驚訝特效！";
           statusHint.style.color = "#ff5252";
         } else {
           currentModeFrames = normalFrames;
-          statusHint.innerText = "✨ 目前狀態：一般待機/逗貓特效！";
+          statusHint.innerText = "✨ 雙人狀態：全員一般待機/逗貓特效！";
           statusHint.style.color = "#ffeb3b";
         }
         currentFrame = 0;
       }
     });
 
-    // 4. 背景持續自動飄落的特效
+    // 3. 背景持續飄落特效
     function createFloatingParticle() {
       const symbols = ["🐾", "❤️", "✨", "🐟", "⭐"];
       const particle = document.createElement('div');
@@ -235,7 +221,7 @@
     }
     setInterval(createFloatingParticle, 400);
 
-    // 5. 拍照存檔功能
+    // 4. 高畫質截圖與合成
     function takeSnapshot() {
       const video = document.querySelector('video');
       const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
@@ -270,7 +256,7 @@
 
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
-      link.download = 'AR-Cat-Filter-Photo.png';
+      link.download = 'AR-Cat-Filter-HD.png';
       link.click();
     }
   </script>
