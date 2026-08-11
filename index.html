@@ -40,7 +40,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   padding:8px 11px;border-radius:999px;background:rgba(0,0,0,.48);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:12px;font-weight:800
 }
-#livePill{color:#ddd}
+#livePill{color:#ddd}\n#topActions{display:flex;align-items:center;gap:8px;pointer-events:auto}\n#soundBtn{font-size:16px}
 #liveDot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
 #startOverlay{
   position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;
@@ -89,7 +89,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
     <div id="topBar">
       <div id="brand">🐱 AR 貓咪</div>
-      <div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div>
+      <div id="topActions"><button id="soundBtn" class="miniAction" title="開啟聲音" aria-label="開啟聲音">🔊</button><div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div></div>
     </div>
 
     <div id="interactionGuide">
@@ -101,7 +101,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button>
       <button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button>
       <button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button>
-      <button id="downloadBtn" class="miniAction hidden" title="下載剛完成的影片" aria-label="下載影片">⬇️</button>
+      <button id="downloadBtn" class="miniAction hidden" title="儲存影片到手機" aria-label="儲存影片到手機">💾</button>
     </div>
 
     <div id="startOverlay">
@@ -181,6 +181,15 @@ let chunks = [];
 let recordedBlob = null;
 let recordedUrl = null;
 let beautyStrength = 100; // 固定最大
+let audioCtx = null;
+let audioDestination = null;
+let bgMusic = null;
+let meowAudio = null;
+let audioEnabled = false;
+let audioMusicSource = null;
+let audioMeowSource = null;
+let musicGain = null;
+let meowGain = null;
 const STATE_CONFIRM_FRAMES = 4;
 const ACTION_COOLDOWN_MS = 450;
 const PROCESS_INTERVAL_MS = 70;
@@ -496,8 +505,13 @@ async function changeARVideo(state){
   updateGuide(state);
 
   let name;
-  if(state === 'mouthOpen') name = nextMouthVideo();
-  else if(state === 'handOpen') name = nextHandVideo();
+  if(state === 'mouthOpen'){
+    name = nextMouthVideo();
+    triggerCatSound();
+  }else if(state === 'handOpen'){
+    name = nextHandVideo();
+    triggerCatSound();
+  }
   else {
     // 回到 normal 時只在目前影片結束或不存在時切換
     if(currentVideo && !testVideo.ended && testVideo.currentTime > 0) return;
@@ -613,35 +627,70 @@ function supportedMime(){
   return types.find(t=>MediaRecorder.isTypeSupported?.(t)) || '';
 }
 async function ensureRecordingAudio(){
-  if(audioCtx){
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-    return;
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) throw new Error('此瀏覽器不支援 Web Audio');
+
+    audioCtx = new Ctx();
+    audioDestination = audioCtx.createMediaStreamDestination();
+
+    bgMusic = new Audio('./background_music.mp3');
+    bgMusic.loop = true;
+    bgMusic.preload = 'auto';
+    bgMusic.crossOrigin = 'anonymous';
+
+    meowAudio = new Audio('./cat_meow.mp3');
+    meowAudio.preload = 'auto';
+    meowAudio.crossOrigin = 'anonymous';
+
+    audioMusicSource = audioCtx.createMediaElementSource(bgMusic);
+    audioMeowSource = audioCtx.createMediaElementSource(meowAudio);
+
+    musicGain = audioCtx.createGain();
+    meowGain = audioCtx.createGain();
+    musicGain.gain.value = 0.16;
+    meowGain.gain.value = 0.70;
+
+    audioMusicSource.connect(musicGain);
+    audioMeowSource.connect(meowGain);
+
+    // 聽得到，也錄得到
+    musicGain.connect(audioCtx.destination);
+    musicGain.connect(audioDestination);
+    meowGain.connect(audioCtx.destination);
+    meowGain.connect(audioDestination);
   }
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  audioDestination = audioCtx.createMediaStreamDestination();
-
-  bgMusic = new Audio('background_music.mp3');
-  bgMusic.loop = true;
-  bgMusic.preload = 'auto';
-  bgMusic.crossOrigin = 'anonymous';
-
-  meowAudio = new Audio('cat_meow.mp3');
-  meowAudio.preload = 'auto';
-  meowAudio.crossOrigin = 'anonymous';
-
-  const musicSource = audioCtx.createMediaElementSource(bgMusic);
-  const meowSource = audioCtx.createMediaElementSource(meowAudio);
-  const musicGain = audioCtx.createGain();
-  const meowGain = audioCtx.createGain();
-  musicGain.gain.value = 0.18;
-  meowGain.gain.value = 0.65;
-  musicSource.connect(musicGain).connect(audioDestination);
-  meowSource.connect(meowGain).connect(audioDestination);
 
   if(audioCtx.state === 'suspended') await audioCtx.resume();
+  return true;
 }
+
+async function toggleSound(){
+  try{
+    await ensureRecordingAudio();
+    audioEnabled = !audioEnabled;
+
+    if(musicGain) musicGain.gain.value = audioEnabled ? 0.16 : 0;
+    if(meowGain) meowGain.gain.value = audioEnabled ? 0.70 : 0;
+
+    $('soundBtn').textContent = audioEnabled ? '🔊' : '🔇';
+    $('soundBtn').title = audioEnabled ? '關閉聲音' : '開啟聲音';
+
+    if(audioEnabled && bgMusic){
+      bgMusic.play().catch(()=>{});
+    }else{
+      bgMusic?.pause();
+    }
+  }catch(e){
+    audioEnabled = false;
+    $('soundBtn').textContent = '🔇';
+    $('soundBtn').title = '請確認音效檔案存在';
+    log('音效未啟用：' + e.message);
+  }
+}
+
 function triggerCatSound(){
-  if(!meowAudio || !audioCtx) return;
+  if(!audioEnabled || !meowAudio || !audioCtx) return;
   meowAudio.currentTime = 0;
   meowAudio.play().catch(()=>{});
 }
@@ -674,15 +723,18 @@ async function toggleRecording(){
     $('recordPreview').src=recordedUrl;
     recording=false;
     $('recordBtn').classList.remove('recording');
-    $('recordBtn').textContent='●';
+    $('recordBtn').textContent='●'; $('recordBtn').title='開始錄影';
     $('downloadBtn').classList.remove('hidden');
+    $('guideTitle').textContent='🎬 錄影完成';
+    $('guideText').textContent='點擊 💾 儲存影片到手機';
+    $('interactionGuide').classList.add('active');
     log('✅ 錄影完成');
   };
   recorder.start(1000);
   recording=true;
   bgMusic?.play().catch(()=>{});
   $('recordBtn').classList.add('recording');
-  $('recordBtn').textContent='■';
+  $('recordBtn').textContent='■'; $('recordBtn').title='停止錄影';
   $('downloadBtn').classList.add('hidden');
   log(`🔴 開始錄影：${mime||'瀏覽器格式'}`);
   recordFrame();
@@ -690,12 +742,16 @@ async function toggleRecording(){
 function saveVideo(){
   if(!recordedBlob){log('目前沒有可儲存的影片');return}
   const ext=recordedBlob.type.includes('mp4')?'mp4':'webm';
-  const url=URL.createObjectURL(recordedBlob);
+  const url=recordedUrl || URL.createObjectURL(recordedBlob);
   const a=document.createElement('a');
-  a.href=url;a.download=`AR_cat_${Date.now()}.${ext}`;
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-  log('💾 影片已儲存');
+  a.href=url;
+  a.download=`AR_cat_${Date.now()}.${ext}`;
+  a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  if(!recordedUrl) setTimeout(()=>URL.revokeObjectURL(url),3000);
+  log('💾 影片下載已觸發');
 }
 function snapshot(){
   if(!arStarted){log('請先啟動 AR');return}
@@ -785,6 +841,19 @@ $('startBtn').onclick=async()=>{
 
   try{
     await startCamera();
+    try{
+      await ensureRecordingAudio();
+      audioEnabled = true;
+      musicGain.gain.value = 0.16;
+      meowGain.gain.value = 0.70;
+      $('soundBtn').textContent = '🔊';
+      bgMusic?.play().catch(()=>{});
+    }catch(e){
+      audioEnabled = false;
+      $('soundBtn').textContent = '🔇';
+      $('soundBtn').title = '音效檔案尚未加入';
+      log('音效檔案未啟用：' + e.message);
+    }
     arStarted=true;
     $('startOverlay').classList.add('hidden');
     $('liveText').textContent = 'LIVE';
@@ -811,6 +880,7 @@ $('recordBtn').onclick=toggleRecording;
 $('snapshotBtn').onclick=snapshot;
 $('downloadBtn').onclick=saveVideo;
 $('switchBtn').onclick=switchCamera;
+$('soundBtn').onclick=toggleSound;
 
 /* =========================
    Resize / Init
