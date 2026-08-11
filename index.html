@@ -90,8 +90,15 @@
       transform: scale(0.95);
     }
 
-    /* 美顏濾鏡核心樣式：提升亮度、微調對比與柔焦美肌 */
+    /* 修正畫面不對稱歪斜：讓視訊與畫布保持置中與正確比例填滿 */
     video, canvas {
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
       filter: brightness(1.12) contrast(1.05) saturate(1.1) drop-shadow(0 0 2px rgba(255,255,255,0.2));
     }
   </style>
@@ -110,17 +117,20 @@
 
   <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
     <a-assets>
-      <video id="v-normal-1" src="normal_state_1.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-2" src="normal_state_2.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-3" src="normal_state_3.mp4" loop crossorigin="anonymous" playsinline></video>
+      <!-- 一般狀態 (4部) -->
+      <video id="v-normal-1" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-2" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-3" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-4" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
       
-      <video id="v-mouth-1" src="mouth_open_1.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-2" src="mouth_open_2.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-3" src="mouth_open_3.mp4" loop crossorigin="anonymous" playsinline></video>
+      <!-- 張開嘴巴 (3部) -->
+      <video id="v-mouth-1" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-2" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-3" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
 
-      <video id="v-hand-1" src="hand_palm_1.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-2" src="hand_palm_2.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-3" src="hand_palm_3.mp4" loop crossorigin="anonymous" playsinline></video>
+      <!-- 張開手掌 (2部) -->
+      <video id="v-hand-1" src="cry_cat_animation.mp4.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-2" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" active="false"></a-camera>
@@ -131,11 +141,11 @@
   </a-scene>
 
   <script>
-    // 1. 組織 9 部互動影片對應結構
+    // 1. 依照新檔名與數量組織分類結構
     const animationVideos = {
-      normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3'],
+      normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3', '#v-normal-4'],
       mouthOpen: ['#v-mouth-1', '#v-mouth-2', '#v-mouth-3'],
-      handPalm: ['#v-hand-1', '#v-hand-2', '#v-hand-3']
+      handPalm: ['#v-hand-1', '#v-hand-2']
     };
 
     let currentCategory = 'normal';
@@ -162,10 +172,16 @@
 
     // 3. 點擊畫面任意處即可循環切換不同互動影片
     window.addEventListener('click', () => {
-      currentIndex = (currentIndex + 1) % 3;
-      // 如果點擊時順序輪替：一般 -> 張嘴 -> 擊掌
       let categories = ['normal', 'mouthOpen', 'handPalm'];
-      let catIndex = (categories.indexOf(currentCategory) + 1) % categories.length;
+      let catIndex = categories.indexOf(currentCategory);
+      
+      currentIndex++;
+      // 如果當前分類的影片輪播完了，就切換到下一個分類
+      if (currentIndex >= animationVideos[currentCategory].length) {
+        currentIndex = 0;
+        catIndex = (catIndex + 1) % categories.length;
+      }
+      
       switchAnimation(categories[catIndex], currentIndex);
     });
 
@@ -174,7 +190,7 @@
       switchAnimation('normal', 0);
     });
 
-    // 4. 錄影與拍照合成畫布邏輯 (解決錄影不會動與無人像問題)
+    // 4. 錄影與拍照合成畫布邏輯
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder;
     let recordedChunks = [];
@@ -194,7 +210,6 @@
         return;
       }
       
-      // 建立高畫質合成串流
       const stream = arCanvas.captureStream(30);
       mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
       
