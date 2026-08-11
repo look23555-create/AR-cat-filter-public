@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🐾 奶牛貓 AR 互動美顏濾鏡</title>
   
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -17,6 +17,7 @@
       margin: 0;
       overflow: hidden;
       font-family: 'Microsoft JhengHei', sans-serif;
+      background-color: #000;
     }
 
     #custom-banner {
@@ -61,6 +62,35 @@
       100% { opacity: 0.8; }
     }
 
+    #start-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    #start-overlay h2 {
+      margin-bottom: 10px;
+      color: #ff7eb3;
+    }
+
+    #start-overlay p {
+      margin-bottom: 25px;
+      font-size: 14px;
+      color: #ddd;
+    }
+
     #controls {
       position: fixed;
       bottom: 30px;
@@ -88,6 +118,7 @@
       transform: scale(0.95);
     }
 
+    /* 確保行動裝置全螢幕與鏡頭正確對齊與翻轉 */
     video, canvas {
       position: absolute !important;
       top: 50% !important;
@@ -96,37 +127,39 @@
       width: 100vw !important;
       height: 100vh !important;
       object-fit: cover !important;
-      filter: brightness(1.18) contrast(0.96) saturate(1.15) blur(0.4px) drop-shadow(0 0 4px rgba(255, 182, 193, 0.4));
+      filter: brightness(1.15) contrast(0.98) saturate(1.1) drop-shadow(0 0 4px rgba(255, 182, 193, 0.3));
     }
   </style>
 </head>
 <body>
 
-  <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
-  
-  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」解鎖對應影片互動！</div>
+  <div id="start-overlay">
+    <h2>🐾 奶牛貓 AR 互動美顏濾鏡</h2>
+    <p>請點擊下方按鈕以啟動相機並解鎖 AR 互動體驗</p>
+    <button class="btn" id="start-ar-btn">進入 AR 世界</button>
+  </div>
 
-  <div id="controls">
+  <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
+  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」切換特效！</div>
+
+  <div id="controls" style="display: none;">
     <button class="btn" id="record-btn">開始錄影</button>
     <button class="btn" id="snapshot-btn">拍照存檔</button>
   </div>
 
   <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
     <a-assets>
-      <!-- 一般狀態 (4部) -->
-      <video id="v-normal-0" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-1" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-2" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-0" src="spider_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-1" src="champion_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-2" src="magic_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
       
-      <!-- 張開嘴巴 (3部) -->
-      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
 
-      <!-- 張開手掌 (2部) - 修正副檔名 -->
-      <video id="v-hand-0" src="cry_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-1" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-0" src="cry_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-1" src="work_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" active="false"></a-camera>
@@ -146,24 +179,35 @@
     let currentCategory = 'normal';
     let currentIndex = 0;
     const videoPlane = document.querySelector('#cat-video-plane');
+    let isAppRunning = false;
 
+    // 影片安全切換與跨平台強制撥放函式
     function switchAnimation(category, index = 0) {
       currentCategory = category;
       currentIndex = index % animationVideos[category].length;
       const targetVideoSelector = animationVideos[category][currentIndex];
       
-      document.querySelectorAll('a-assets video').forEach(v => v.pause());
+      // 暫停所有影片以節省手機資源
+      document.querySelectorAll('a-assets video').forEach(v => {
+        v.pause();
+      });
       
       videoPlane.setAttribute('src', targetVideoSelector);
       const activeVideoEl = document.querySelector(targetVideoSelector);
+      
       if (activeVideoEl) {
         activeVideoEl.currentTime = 0;
-        activeVideoEl.play().catch(e => console.log("播放被瀏覽器阻擋:", e));
+        activeVideoEl.play().catch(e => {
+          console.warn("影片播放遭瀏覽器限制:", e);
+        });
       }
     }
 
-    // 點擊畫面循環切換
-    window.addEventListener('click', () => {
+    // 點擊畫面循環切換特效
+    window.addEventListener('click', (e) => {
+      // 避免點到控制按鈕時重複觸發
+      if (e.target.closest('#controls') || e.target.closest('#start-overlay')) return;
+
       let categories = ['normal', 'mouthOpen', 'handPalm'];
       let catIndex = categories.indexOf(currentCategory);
       
@@ -176,14 +220,7 @@
       switchAnimation(categories[catIndex], currentIndex);
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('a-assets video').forEach(v => {
-        v.load();
-      });
-      switchAnimation('normal', 0);
-    });
-
-    // 1. 臉部網格偵測（張開嘴巴）
+    // 初始化 MediaPipe 模組
     const faceMesh = new FaceMesh({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
@@ -193,6 +230,7 @@
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
+    
     faceMesh.onResults(results => {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
@@ -200,22 +238,23 @@
         const lowerLip = landmarks[14];
         const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
 
+        // 偵測張嘴觸發
         if (mouthOpenDistance > 0.05 && currentCategory !== 'mouthOpen') {
           switchAnimation('mouthOpen', Math.floor(Math.random() * animationVideos.mouthOpen.length));
         }
       }
     });
 
-    // 2. 手部關節偵測（張開手掌）
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
     hands.setOptions({
       maxNumHands: 1,
-      modelComplexity: 1,
+      modelComplexity: 0, // 設為 0 以提升手機端執行效能與流暢度
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
+
     hands.onResults(results => {
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
@@ -232,31 +271,63 @@
           }
         }
 
+        // 偵測手掌張開觸發
         if (extendedFingers >= 4 && currentCategory !== 'handPalm') {
           switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
         }
       }
     });
 
-    // 3. 啟動相機並同時執行雙模組運算
-    window.addEventListener('load', () => {
+    // 點擊「進入 AR 世界」按鈕後，一次性解鎖所有影音與相機權限（完美避開行動端自動播放限制）
+    document.getElementById('start-ar-btn').addEventListener('click', async () => {
+      const overlay = document.getElementById('start-overlay');
+      overlay.style.display = 'none';
+      document.getElementById('controls').style.display = 'flex';
+
+      // 1. 預載並靜音強制播放所有影片以解除 iOS 限制
+      const videoEls = document.querySelectorAll('a-assets video');
+      for (let v of videoEls) {
+        v.load();
+        try {
+          await v.play();
+          v.pause();
+          v.currentTime = 0;
+        } catch (err) {
+          console.log("預載影片略過:", err);
+        }
+      }
+
+      // 2. 啟動預設動畫
+      switchAnimation('normal', 0);
+
+      // 3. 啟動手機相機與 AI 偵測迴圈
       setTimeout(() => {
         const videoElement = document.querySelector('video');
         if (videoElement) {
           const camera = new Camera(videoElement, {
             onFrame: async () => {
-              await faceMesh.send({ image: videoElement });
-              await hands.send({ image: videoElement });
+              if (!isAppRunning) return;
+              try {
+                await faceMesh.send({ image: videoElement });
+                await hands.send({ image: videoElement });
+              } catch (e) {
+                // 忽略單一影格計算逾時以防中斷
+              }
             },
-            width: 1280,
-            height: 720
+            width: 640,  // 改為 640x480 降低手機處理負載，確保流暢不卡頓
+            height: 480
           });
-          camera.start().catch(e => console.log("相機啟動提示:", e));
+          camera.start().then(() => {
+            isAppRunning = true;
+          }).catch(e => {
+            alert("無法開啟相機，請確認是否授權相機權限。");
+            console.error(e);
+          });
         }
-      }, 1500);
+      }, 500);
     });
 
-    // 錄影與拍照功能
+    // 錄影與拍照功能（合成畫布輸出）
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder;
     let recordedChunks = [];
@@ -276,8 +347,17 @@
         return;
       }
       
-      const stream = arCanvas.captureStream(30);
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+      try {
+        const stream = arCanvas.captureStream(30);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+      } catch (e) {
+        try {
+          mediaRecorder = new MediaRecorder(arCanvas.captureStream(30)); // 兼容 fallback
+        } catch (err) {
+          alert("此瀏覽器不支援直接錄影功能！");
+          return;
+        }
+      }
       
       recordedChunks = [];
       mediaRecorder.ondataavailable = e => {
@@ -299,7 +379,9 @@
     }
 
     function stopRecording() {
-      mediaRecorder.stop();
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
       recordBtn.innerText = '開始錄影';
       recordBtn.style.background = 'linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%)';
     }
