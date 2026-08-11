@@ -52,7 +52,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #startBtn{width:100%;background:linear-gradient(135deg,#ff4f9a,#8d5cff);font-size:16px}
 #startOverlay.hidden{display:none}
 #interactionGuide{
-  position:absolute;z-index:12;left:50%;top:max(18px,env(safe-area-inset-top) + 12px);
+  position:absolute;z-index:12;left:50%;top:max(58px,env(safe-area-inset-top) + 52px);
   transform:translateX(-50%);width:auto;max-width:min(88vw,420px);
   padding:9px 14px;border-radius:999px;background:rgba(0,0,0,.38);
   border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);
@@ -74,10 +74,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #recordPreview,#testVideo{display:none!important}
 @media(max-width:680px){
   #stage{height:100svh;min-height:100svh}
-  #interactionGuide{top:max(18px,env(safe-area-inset-top) + 12px);max-width:88vw}
+  #interactionGuide{top:max(58px,env(safe-area-inset-top) + 52px);max-width:88vw}
 }
 @media(max-width:380px){
-  #interactionGuide{top:max(18px,env(safe-area-inset-top) + 12px);max-width:88vw}
+  #interactionGuide{top:max(58px,env(safe-area-inset-top) + 52px);max-width:88vw}
 }
 </style>
 </head>
@@ -109,7 +109,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
         <h1>🐱 AR 貓咪</h1>
         <p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p>
         <button id="startBtn">📷 開始玩</button>
-        <div class="small" style="margin-top:10px">首次使用請允許相機權限</div>
+        <div class="small" style="margin-top:10px">首次使用請允許相機權限；互動時會有貓叫與輕音樂</div>
       </div>
     </div>
   </div>
@@ -190,6 +190,10 @@ let audioMusicSource = null;
 let audioMeowSource = null;
 let musicGain = null;
 let meowGain = null;
+let musicTimer = null;
+let audioReady = false;
+let musicStep = 0;
+let fxParticles = [];
 const STATE_CONFIRM_FRAMES = 4;
 const ACTION_COOLDOWN_MS = 450;
 const PROCESS_INTERVAL_MS = 70;
@@ -596,6 +600,7 @@ function drawAR(){
 
   drawBeauty();
   drawCat();
+  drawCatFX();
   setStatus('canvasStatus','✅ AR 即時運作','ok');
 }
 
@@ -626,73 +631,140 @@ function supportedMime(){
   ];
   return types.find(t=>MediaRecorder.isTypeSupported?.(t)) || '';
 }
+function makeTone(freq, duration, gainValue=0.03, type='sine', when=0){
+  if(!audioCtx || !audioDestination || !audioEnabled) return;
+  const now=audioCtx.currentTime + when;
+  const osc=audioCtx.createOscillator();
+  const gain=audioCtx.createGain();
+  osc.type=type;
+  osc.frequency.setValueAtTime(freq,now);
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(gainValue,now+0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+  osc.connect(gain); gain.connect(audioDestination);
+  osc.start(now); osc.stop(now+duration+0.03);
+}
+function startBuiltInMusic(){
+  if(!audioCtx || !audioEnabled || musicTimer) return;
+  const notes=[261.63,329.63,392.00,329.63,293.66,349.23,440.00,349.23];
+  musicStep=0;
+  musicTimer=setInterval(()=>{
+    if(!audioEnabled) return;
+    const f=notes[musicStep++ % notes.length];
+    makeTone(f,0.24,0.018,'sine');
+    if(musicStep%4===1) makeTone(f/2,0.38,0.012,'triangle',0.02);
+  },320);
+}
+function stopBuiltInMusic(){
+  if(musicTimer){clearInterval(musicTimer);musicTimer=null;}
+}
 async function ensureRecordingAudio(){
   if(!audioCtx){
-    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const Ctx=window.AudioContext||window.webkitAudioContext;
     if(!Ctx) throw new Error('此瀏覽器不支援 Web Audio');
-
-    audioCtx = new Ctx();
-    audioDestination = audioCtx.createMediaStreamDestination();
-
-    bgMusic = new Audio('./background_music.mp3');
-    bgMusic.loop = true;
-    bgMusic.preload = 'auto';
-    bgMusic.crossOrigin = 'anonymous';
-
-    meowAudio = new Audio('./cat_meow.mp3');
-    meowAudio.preload = 'auto';
-    meowAudio.crossOrigin = 'anonymous';
-
-    audioMusicSource = audioCtx.createMediaElementSource(bgMusic);
-    audioMeowSource = audioCtx.createMediaElementSource(meowAudio);
-
-    musicGain = audioCtx.createGain();
-    meowGain = audioCtx.createGain();
-    musicGain.gain.value = 0.16;
-    meowGain.gain.value = 0.70;
-
-    audioMusicSource.connect(musicGain);
-    audioMeowSource.connect(meowGain);
-
-    // 聽得到，也錄得到
-    musicGain.connect(audioCtx.destination);
-    musicGain.connect(audioDestination);
-    meowGain.connect(audioCtx.destination);
-    meowGain.connect(audioDestination);
+    audioCtx=new Ctx();
+    audioDestination=audioCtx.createMediaStreamDestination();
+    audioReady=true;
   }
-
-  if(audioCtx.state === 'suspended') await audioCtx.resume();
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+  audioEnabled=true;
+  if(musicGain) musicGain.gain.value=0;
+  if(meowGain) meowGain.gain.value=0;
+  startBuiltInMusic();
   return true;
 }
-
 async function toggleSound(){
   try{
-    await ensureRecordingAudio();
-    audioEnabled = !audioEnabled;
-
-    if(musicGain) musicGain.gain.value = audioEnabled ? 0.16 : 0;
-    if(meowGain) meowGain.gain.value = audioEnabled ? 0.70 : 0;
-
-    $('soundBtn').textContent = audioEnabled ? '🔊' : '🔇';
-    $('soundBtn').title = audioEnabled ? '關閉聲音' : '開啟聲音';
-
-    if(audioEnabled && bgMusic){
-      bgMusic.play().catch(()=>{});
+    if(!audioCtx) await ensureRecordingAudio();
+    if(audioCtx.state==='suspended') await audioCtx.resume();
+    audioEnabled=!audioEnabled;
+    if(audioEnabled){
+      startBuiltInMusic();
+      $('soundBtn').textContent='🔊';
+      $('soundBtn').title='關閉聲音';
+      $('soundBtn').setAttribute('aria-label','關閉聲音');
     }else{
-      bgMusic?.pause();
+      stopBuiltInMusic();
+      $('soundBtn').textContent='🔇';
+      $('soundBtn').title='開啟聲音';
+      $('soundBtn').setAttribute('aria-label','開啟聲音');
     }
   }catch(e){
-    audioEnabled = false;
-    $('soundBtn').textContent = '🔇';
-    $('soundBtn').title = '請確認音效檔案存在';
-    log('音效未啟用：' + e.message);
+    log('音效啟用失敗：'+e.message);
   }
 }
 
 function triggerCatSound(){
-  if(!audioEnabled || !meowAudio || !audioCtx) return;
-  meowAudio.currentTime = 0;
-  meowAudio.play().catch(()=>{});
+  if(!audioEnabled || !audioCtx || !audioDestination) return;
+  const now=audioCtx.currentTime;
+  const osc=audioCtx.createOscillator();
+  const gain=audioCtx.createGain();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(620,now);
+  osc.frequency.exponentialRampToValueAtTime(340,now+0.16);
+  osc.frequency.exponentialRampToValueAtTime(210,now+0.42);
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.11,now+0.035);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.44);
+  osc.connect(gain); gain.connect(audioDestination);
+  // 同時播放給使用者聽
+  const monitor=audioCtx.createGain();
+  monitor.gain.value=0.95;
+  gain.connect(monitor); monitor.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now+0.47);
+  addCatParticles();
+}
+
+function addCatParticles(){
+  const g=getFaceGeometry();
+  if(!g) return;
+  for(let i=0;i<5;i++) fxParticles.push({
+    x:g.centerX+(Math.random()-.5)*g.faceWidth*1.15,
+    y:g.headTop-g.faceHeight*.05+(Math.random()-.5)*g.faceHeight*.25,
+    vx:(Math.random()-.5)*0.7, vy:-0.5-Math.random()*0.5,
+    life:1, size:4+Math.random()*4, rot:Math.random()*Math.PI*2
+  });
+}
+function drawCatFX(){
+  const g=getFaceGeometry();
+  if(!g) return;
+  // subtle cat ears, kept above the face so facial landmarks remain visible
+  const s=Math.max(34,Math.min(64,g.faceWidth*.16));
+  const gap=g.faceWidth*.34;
+  ctx.save();
+  ctx.globalAlpha=.78;
+  ctx.lineWidth=Math.max(2,s*.055);
+  ctx.strokeStyle='rgba(255,105,170,.85)';
+  ctx.fillStyle='rgba(255,105,170,.16)';
+  for(const side of [-1,1]){
+    const cx=g.centerX+side*gap;
+    const baseY=g.headTop+g.faceHeight*.02;
+    ctx.beginPath();
+    ctx.moveTo(cx-s*.55,baseY);
+    ctx.lineTo(cx,baseY-s*.95);
+    ctx.lineTo(cx+s*.55,baseY);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx-s*.22,baseY-s*.10);
+    ctx.lineTo(cx,baseY-s*.58);
+    ctx.lineTo(cx+s*.22,baseY-s*.10);
+    ctx.stroke();
+  }
+  ctx.restore();
+  if(fxParticles.length){
+    ctx.save();
+    for(const p of fxParticles){
+      p.x+=p.vx; p.y+=p.vy; p.life-=.035; p.rot+=.05;
+      if(p.life<=0) continue;
+      ctx.globalAlpha=p.life*.85;
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.font=`${p.size*2}px sans-serif`;
+      ctx.fillText('🐾',-p.size,-p.size);
+      ctx.setTransform(1,0,0,1,0,0);
+    }
+    ctx.restore();
+    fxParticles=fxParticles.filter(p=>p.life>0);
+  }
 }
 
 async function toggleRecording(){
@@ -716,8 +788,7 @@ async function toggleRecording(){
   recorder.onstop=()=>{
     const type=recorder.mimeType||mime||'video/webm';
     recordedBlob=new Blob(chunks,{type});
-    bgMusic?.pause();
-    if(bgMusic) bgMusic.currentTime=0;
+    stopBuiltInMusic();
     if(recordedUrl) URL.revokeObjectURL(recordedUrl);
     recordedUrl=URL.createObjectURL(recordedBlob);
     $('recordPreview').src=recordedUrl;
@@ -732,7 +803,7 @@ async function toggleRecording(){
   };
   recorder.start(1000);
   recording=true;
-  bgMusic?.play().catch(()=>{});
+  if(audioEnabled) startBuiltInMusic();
   $('recordBtn').classList.add('recording');
   $('recordBtn').textContent='■'; $('recordBtn').title='停止錄影';
   $('downloadBtn').classList.add('hidden');
@@ -750,6 +821,10 @@ function saveVideo(){
   document.body.appendChild(a);
   a.click();
   a.remove();
+  // iOS Safari 可能忽略 download 屬性；保留 Blob URL 可由使用者長按儲存。
+  if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
+    setTimeout(()=>window.open(url,'_blank','noopener'),120);
+  }
   if(!recordedUrl) setTimeout(()=>URL.revokeObjectURL(url),3000);
   log('💾 影片下載已觸發');
 }
@@ -843,16 +918,12 @@ $('startBtn').onclick=async()=>{
     await startCamera();
     try{
       await ensureRecordingAudio();
-      audioEnabled = true;
-      musicGain.gain.value = 0.16;
-      meowGain.gain.value = 0.70;
-      $('soundBtn').textContent = '🔊';
-      bgMusic?.play().catch(()=>{});
+      audioEnabled=true;
+      $('soundBtn').textContent='🔊';
+      $('soundBtn').title='關閉聲音';
     }catch(e){
-      audioEnabled = false;
-      $('soundBtn').textContent = '🔇';
-      $('soundBtn').title = '音效檔案尚未加入';
-      log('音效檔案未啟用：' + e.message);
+      $('soundBtn').textContent='🔇';
+      log('音效啟用失敗：'+e.message);
     }
     arStarted=true;
     $('startOverlay').classList.add('hidden');
