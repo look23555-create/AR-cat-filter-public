@@ -43,7 +43,7 @@ button:active{transform:scale(.97)} button:disabled{opacity:.45}
 <div id="topBar"><div id="brand">🐱 AR 貓咪</div><div id="topActions"><button id="soundBtn" class="miniAction" title="關閉聲音" aria-label="關閉聲音">🔊</button><div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div></div></div>
 <div id="interactionGuide"><div id="guideTitle">🐱 跟貓咪互動</div><div id="guideText">👄 張嘴・✋ 張開手掌・貓咪會自動回應</div></div>
 <div id="captureBar"><button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button><button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button><button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button><button id="downloadBtn" class="miniAction hidden" title="儲存影片到手機" aria-label="儲存影片到手機">💾</button></div>
-<div id="startOverlay"><div id="startBox"><h1>🐱 AR 貓咪</h1><p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p><button id="startBtn">📷 開始玩</button><div style="margin-top:10px;color:#aaa;font-size:12px">首次使用請允許相機權限；互動時會有貓叫與輕音樂</div></div></div>
+<div id="startOverlay"><div id="startBox"><h1>🐱 AR 貓咪</h1><p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p><button id="startBtn">📷 開始玩</button><div style="margin-top:10px;color:#aaa;font-size:12px">首次使用請允許相機權限；部分互動會有對應音效</div></div></div>
 </div>
 <video id="catVideoA" muted playsinline webkit-playsinline preload="auto"></video>
 <video id="catVideoB" muted playsinline webkit-playsinline preload="auto"></video>
@@ -52,6 +52,15 @@ button:active{transform:scale(.97)} button:disabled{opacity:.45}
 <script>
 'use strict';
 
+/*
+音效規則：
+- chef_cat_animation.mp4  -> fry_potatoes.mp3
+- eat_cat_animation.mp4   -> slurp_ramen.mp3
+- drink_cat_animation.mp4 -> open_bottled_coffee.mp3
+- 其他所有影片            -> 不播放互動音效
+- cat_sweet_voice4.mp3     -> 不再由程式自動播放（可留在 GitHub，但不會被使用）
+*/
+
 const VIDEO_GROUPS={
   normal:['spider_cat_animation.mp4','champion_cat_animation.mp4','magic_cat_animation.mp4','sleep_cat_animation.mp4'],
   mouthOpen:['chef_cat_animation.mp4','eat_cat_animation.mp4','drink_cat_animation.mp4'],
@@ -59,7 +68,6 @@ const VIDEO_GROUPS={
 };
 const ALL_VIDEOS=[...new Set([...VIDEO_GROUPS.normal,...VIDEO_GROUPS.mouthOpen,...VIDEO_GROUPS.handOpen])];
 const AUDIO_FILES={
-  cat:'cat_sweet_voice4.mp3',
   chef:'fry_potatoes.mp3',
   eat:'slurp_ramen.mp3',
   drink:'open_bottled_coffee.mp3',
@@ -185,8 +193,20 @@ function nextPreloadFor(name,reason){
   const group=VIDEO_GROUPS[reason]||VIDEO_GROUPS.normal;const i=Math.max(0,group.indexOf(name));return group[(i+1)%group.length]||VIDEO_GROUPS.normal[0]}
 function playSfx(name){
   if(!audioEnabled||!audioCtx)return;
-  let key='cat';if(name.includes('chef_cat_animation'))key='chef';else if(name.includes('eat_cat_animation'))key='eat';else if(name.includes('drink_cat_animation'))key='drink';
-  const a=sfxSources.get(key);if(!a)return;a.currentTime=0;a.play().catch(e=>log('音效播放失敗 '+e.message));
+
+  // 只有有「專屬音效」的影片才播放音效。
+  // 一般影片（spider / champion / magic / sleep / cry / work）
+  // 不再自動播放 cat_sweet_voice4.mp3，避免不同動作聲音混在一起。
+  let key='';
+  if(name.includes('chef_cat_animation')) key='chef';
+  else if(name.includes('eat_cat_animation')) key='eat';
+  else if(name.includes('drink_cat_animation')) key='drink';
+  else return;
+
+  const a=sfxSources.get(key);
+  if(!a)return;
+  a.currentTime=0;
+  a.play().catch(e=>log('音效播放失敗 '+e.message));
 }
 function requestState(state){
   if(state===currentState&&!switchBusy)return;
@@ -203,8 +223,7 @@ async function initAudio(){
   audioCtx=new Ctx();audioDestination=audioCtx.createMediaStreamDestination();
   musicGain=audioCtx.createGain();sfxGain=audioCtx.createGain();musicGain.gain.value=.12;sfxGain.gain.value=.9;
   musicGain.connect(audioCtx.destination);musicGain.connect(audioDestination);sfxGain.connect(audioCtx.destination);sfxGain.connect(audioDestination);
-  const make=(file,key,loop=false)=>{const a=new Audio('./'+file);a.preload='auto';a.loop=loop;a.playsInline=true;a.setAttribute('playsinline','');a.crossOrigin='anonymous';const source=audioCtx.createMediaElementSource(a);source.connect(key==='music'?musicGain:sfxGain);return a};
-  sfxSources.set('cat',make(AUDIO_FILES.cat,'sfx'));sfxSources.set('chef',make(AUDIO_FILES.chef,'sfx'));sfxSources.set('eat',make(AUDIO_FILES.eat,'sfx'));sfxSources.set('drink',make(AUDIO_FILES.drink,'sfx'));
+  const make=(file,key,loop=false)=>{const a=new Audio('./'+file);a.preload='auto';a.loop=loop;a.playsInline=true;a.setAttribute('playsinline','');a.crossOrigin='anonymous';const source=audioCtx.createMediaElementSource(a);source.connect(key==='music'?musicGain:sfxGain);return a};sfxSources.set('chef',make(AUDIO_FILES.chef,'sfx'));sfxSources.set('eat',make(AUDIO_FILES.eat,'sfx'));sfxSources.set('drink',make(AUDIO_FILES.drink,'sfx'));
   // Optional real background music. If it is not uploaded, use a very soft built-in ambience so the app never fails.
   musicAudio=make(AUDIO_FILES.music,'music',true);
   musicAudio.addEventListener('error',()=>{musicAudio=null;startFallbackMusic()},{once:true});
