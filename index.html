@@ -2,19 +2,17 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Face Cat Filter - Ultimate HD</title>
+  <title>AR Multi-Cat Video Filter</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; -webkit-user-select: none; user-select: none; }
     
-    /* 相機鏡頭優化與全螢幕適配各大品牌手機 */
-    video {
+    video.webcam-video {
       object-fit: cover;
       filter: contrast(1.05) brightness(1.08) saturate(1.1);
     }
 
-    /* 自動抓取當下時間的標題橫幅 */
     #custom-banner {
       position: fixed;
       top: 20px;
@@ -34,7 +32,6 @@
       white-space: nowrap;
     }
 
-    /* 互動提示狀態框 */
     #status-hint {
       position: fixed;
       top: 65px;
@@ -49,20 +46,21 @@
       pointer-events: none;
     }
 
-    /* 拍照按鈕介面 */
     #ui-container {
       position: fixed;
       bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 999;
+      display: flex;
+      gap: 10px;
     }
     .btn {
       background-color: #ff4081;
       color: white;
       border: none;
-      padding: 12px 32px;
-      font-size: 16px;
+      padding: 12px 24px;
+      font-size: 15px;
       border-radius: 30px;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
@@ -70,7 +68,6 @@
     }
     .btn:active { background-color: #f50057; }
 
-    /* 背景持續飄落的特效元素 */
     .floating-particle {
       position: fixed;
       pointer-events: none;
@@ -88,78 +85,37 @@
 <body>
 
   <div id="custom-banner">
-    🐾 貓咪 AR 雙人互動濾鏡 | <span id="live-date"></span> ❤️
+    🐾 多功能貓咪 AR 影片濾鏡 | <span id="live-date"></span> ❤️
   </div>
   
-  <div id="status-hint">💡 點擊畫面任意處即可切換特效！</div>
+  <div id="status-hint">💡 點擊畫面任意處即可啟動特效！</div>
 
   <div id="ui-container">
     <button class="btn" onclick="takeSnapshot()">📸 拍照留念</button>
+    <button id="record-btn" class="btn" style="background-color: #ff9800;" onclick="toggleRecord()">🔴 開始錄影</button>
   </div>
 
   <a-scene id="ar-scene" mindar-face="maxTrack: 2;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-assets>
-      <img id="cat_0" src="hand_open_01_1.png">
-      <img id="cat_1" src="hand_open_01_2.png">
-      <img id="cat_2" src="hand_open_01_3.png">
-      <img id="cat_3" src="hand_open_01_4.png">
-      <img id="cat_4" src="hand_open_01_5.png">
-      <img id="cat_5" src="hand_open_01_6.png">
-      <img id="cat_6" src="hand_open_02_1.png">
-      <img id="cat_7" src="hand_open_02_2.png">
-      <img id="cat_8" src="hand_open_02_3.png">
-      <img id="cat_9" src="hand_open_02_4.png">
-      <img id="cat_10" src="hand_open_02_5.png">
-      <img id="cat_11" src="hand_open_02_6.png">
-
-      <img id="cat_12" src="idle_01_1.jpg">
-      <img id="cat_13" src="idle_01_2.jpg">
-      <img id="cat_14" src="idle_01_3.jpg">
-      <img id="cat_15" src="idle_01_4.jpg">
-      <img id="cat_16" src="idle_01_5.jpg">
-      <img id="cat_17" src="idle_01_6.jpg">
-      <img id="cat_18" src="idle_02_1.png">
-      <img id="cat_19" src="idle_02_2.png">
-      <img id="cat_20" src="idle_02_3.png">
-      <img id="cat_21" src="idle_02_4.png">
-      <img id="cat_22" src="idle_02_5.png">
-      <img id="cat_23" src="idle_02_6.png">
-
-      <img id="cat_24" src="mouth_open_01_1.png">
-      <img id="cat_25" src="mouth_open_01_2.png">
-      <img id="cat_26" src="mouth_open_01_3.png">
-      <img id="cat_27" src="mouth_open_01_4.png">
-      <img id="cat_28" src="mouth_open_01_5.png">
-      <img id="cat_29" src="mouth_open_01_6.png">
-      <img id="cat_30" src="mouth_open_02_1.png">
-      <img id="cat_31" src="mouth_open_02_2.png">
-      <img id="cat_32" src="mouth_open_02_3.png">
-      <img id="cat_33" src="mouth_open_02_4.png">
-      <img id="cat_34" src="mouth_open_02_5.png">
-      <img id="cat_35" src="mouth_open_02_6.png">
-      <img id="cat_36" src="mouth_open_03_1.png">
-      <img id="cat_37" src="mouth_open_03_2.png">
-      <img id="cat_38" src="mouth_open_03_3.png">
-      <img id="cat_39" src="mouth_open_03_4.png">
-      <img id="cat_40" src="mouth_open_03_5.png">
-      <img id="cat_41" src="mouth_open_03_6.png">
+      <video id="chef-video" src="chef_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="drink-video" src="drink_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="cry-video" src="cry_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="magic-video" src="magic_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="work-video" src="work_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="sleep-video" src="sleep_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
+      <video id="eat-video" src="eat_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <a-entity mindar-face-target="anchorIndex: 10; targetIndex: 0">
-      <a-plane class="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" 
-        material="transparent: true; alphaTest: 0.05; shader: flat;"></a-plane>
-    </a-entity>
-
-    <a-entity mindar-face-target="anchorIndex: 10; targetIndex: 1">
-      <a-plane class="animated-cat" src="#cat_0" position="0 0.5 0" height="0.8" width="0.8" rotation="0 0 0" 
-        material="transparent: true; alphaTest: 0.05; shader: flat;"></a-plane>
+    <a-entity mindar-face-target="anchorIndex: 10" id="face-target">
+      <a-plane id="cat-display-plane" class="animated-cat" src="#drink-video" position="0 0.9 0" height="1.25" width="0.7" rotation="0 0 0" 
+        material="transparent: true; shader: flat;"></a-plane>
     </a-entity>
   </a-scene>
 
   <script>
-    // 0. 自動動態抓取當下時間
+    // 0. 自動抓取當下時間
     function updateLiveDate() {
       const now = new Date();
       const year = now.getFullYear();
@@ -169,47 +125,85 @@
     }
     updateLiveDate();
 
-    // 1. 動畫群組設定
-    const normalFrames = [];
-    for (let i = 0; i <= 23; i++) {
-      normalFrames.push(`#cat_${i}`);
-    }
-
-    const mouthOpenFrames = [];
-    for (let i = 24; i <= 41; i++) {
-      mouthOpenFrames.push(`#cat_${i}`);
-    }
-
-    let currentModeFrames = normalFrames;
-    let currentFrame = 0;
     const statusHint = document.querySelector('#status-hint');
+    const displayPlane = document.querySelector('#cat-display-plane');
 
-    // 動畫循環播放 (350毫秒切換一格，流暢不卡頓)
-    setInterval(() => {
-      currentFrame = (currentFrame + 1) % currentModeFrames.length;
-      const catPlanes = document.querySelectorAll('.animated-cat');
-      catPlanes.forEach(plane => {
-        plane.setAttribute('src', currentModeFrames[currentFrame]);
+    // 影片清單分類
+    const mouthVideos = ['chef-video', 'eat-video'];
+    const handVideos = ['cry-video', 'work-video'];
+    const idleVideos = ['drink-video', 'magic-video', 'sleep-video'];
+
+    let currentVideoElement = null;
+    let isLocked = false; // 確保影片播完前不被強制中斷
+    let idleIndex = 0;
+
+    function playVideoById(videoId, onCompleteCallback) {
+      if (currentVideoElement) {
+        currentVideoElement.pause();
+        currentVideoElement.currentTime = 0;
+        currentVideoElement.onended = null;
+      }
+
+      const nextVideo = document.querySelector(`#${videoId}`);
+      if (!nextVideo) return;
+
+      currentVideoElement = nextVideo;
+      displayPlane.setAttribute('src', `#${videoId}`);
+      
+      isLocked = true;
+      nextVideo.play().then(() => {
+        statusHint.innerText = `🎬 播放中: ${videoId.replace('-video', '')}`;
+      }).catch(err => {
+        console.log("播放被阻擋:", err);
+        isLocked = false;
       });
-    }, 350);
 
-    // 2. 點擊畫面切換特效模式
+      nextVideo.onended = () => {
+        isLocked = false;
+        if (onCompleteCallback) onCompleteCallback();
+      };
+    }
+
+    // 播放一般待機循環影片
+    function playNextIdle() {
+      if (isLocked) return;
+      const vId = idleVideos[idleIndex];
+      idleIndex = (idleIndex + 1) % idleVideos.length;
+      playVideoById(vId, () => {
+        if (!isLocked) playNextIdle();
+      });
+    }
+
+    // 1. 點擊畫面解鎖影音限制並開始播放
     window.addEventListener('click', (e) => {
       if (e.target.tagName !== 'BUTTON') {
-        if (currentModeFrames === normalFrames) {
-          currentModeFrames = mouthOpenFrames;
-          statusHint.innerText = "😲 雙人狀態：全員張嘴驚訝特效！";
-          statusHint.style.color = "#ff5252";
-        } else {
-          currentModeFrames = normalFrames;
-          statusHint.innerText = "✨ 雙人狀態：全員一般待機/逗貓特效！";
-          statusHint.style.color = "#ffeb3b";
+        if (!currentVideoElement || currentVideoElement.paused) {
+          playNextIdle();
+          statusHint.innerText = "✨ 貓咪影片濾鏡已啟動！";
         }
-        currentFrame = 0;
       }
     });
 
-    // 3. 背景持續飄落特效
+    // 模擬偵測觸發事件（可對應你的手勢/張嘴 AI 狀態機或鍵盤測試）
+    // 當偵測到「張嘴」時呼叫此函數
+    function triggerMouthOpen() {
+      if (isLocked) return; // 確保上一部影片播完才切換
+      const randomV = mouthVideos[Math.floor(Math.random() * mouthVideos.length)];
+      playVideoById(randomV, () => {
+        playNextIdle();
+      });
+    }
+
+    // 當偵測到「張開手掌」時呼叫此函數
+    function triggerHandOpen() {
+      if (isLocked) return; // 確保上一部影片播完才切換
+      const randomV = handVideos[Math.floor(Math.random() * handVideos.length)];
+      playVideoById(randomV, () => {
+        playNextIdle();
+      });
+    }
+
+    // 2. 背景持續飄落特效
     function createFloatingParticle() {
       const symbols = ["🐾", "❤️", "✨", "🐟", "⭐"];
       const particle = document.createElement('div');
@@ -221,7 +215,7 @@
     }
     setInterval(createFloatingParticle, 400);
 
-    // 4. 高畫質截圖與合成
+    // 3. 拍照功能
     function takeSnapshot() {
       const video = document.querySelector('video');
       const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
@@ -258,6 +252,71 @@
       link.href = canvas.toDataURL('image/png');
       link.download = 'AR-Cat-Filter-HD.png';
       link.click();
+    }
+
+    // 4. 動態錄影功能
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    function toggleRecord() {
+      const recordBtn = document.getElementById('record-btn');
+      const video = document.querySelector('video');
+      const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
+
+      if (!isRecording) {
+        const combinedCanvas = document.createElement('canvas');
+        combinedCanvas.width = video.videoWidth || 640;
+        combinedCanvas.height = video.videoHeight || 480;
+        const ctx = combinedCanvas.getContext('2d');
+
+        const stream = combinedCanvas.captureStream(30);
+        
+        try {
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+        } catch (e) {
+          mediaRecorder = new MediaRecorder(stream);
+        }
+
+        recordedChunks = [];
+        
+        mediaRecorder.ondataavailable = function(event) {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = function() {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'AR-Cat-Video.webm';
+          a.click();
+        };
+
+        window.arRecordInterval = setInterval(() => {
+          ctx.filter = 'contrast(1.05) brightness(1.08) saturate(1.1)';
+          ctx.drawImage(video, 0, 0, combinedCanvas.width, combinedCanvas.height);
+          ctx.filter = 'none';
+          if (canvasElement) {
+            ctx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
+          }
+        }, 1000 / 30);
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.innerText = "⏹️ 停止錄影";
+        recordBtn.style.backgroundColor = "#f44336";
+        statusHint.innerText = "🔴 正在錄製 AR 影片中...";
+      } else {
+        mediaRecorder.stop();
+        clearInterval(window.arRecordInterval);
+        isRecording = false;
+        recordBtn.innerText = "🔴 開始錄影";
+        recordBtn.style.backgroundColor = "#ff9800";
+        statusHint.innerText = "✨ 錄影完成，影片已自動下載！";
+      }
     }
   </script>
 </body>
