@@ -5,1000 +5,267 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#07070b">
 <title>AR 貓咪｜互動濾鏡</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
 <style>
-:root{
-  --bg:#07070b;
-  --panel:rgba(20,20,28,.82);
-  --line:rgba(255,255,255,.09);
-  --text:#fff;
-  --muted:#a9a9b4;
-  --pink:#ff4f9a;
-  --green:#35d07f;
-  --yellow:#ffd166;
-}
+:root{--bg:#07070b;--line:rgba(255,255,255,.12);--text:#fff;--pink:#ff4f9a;--green:#35d07f}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC",Arial,sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC",Arial,sans-serif}
 button{border:0;border-radius:999px;padding:12px 16px;color:#fff;background:#262631;font-weight:800;font-size:14px;cursor:pointer;min-height:44px}
-button:active{transform:scale(.97)}
-button:disabled{opacity:.45;cursor:not-allowed}
-#app{position:fixed;inset:0;overflow:hidden;background:#000}
-#stage{
-  position:relative;width:100%;height:100svh;min-height:100svh;
-  background:#000;overflow:hidden;
-}
+button:active{transform:scale(.97)} button:disabled{opacity:.45}
+#app,#stage{position:fixed;inset:0;overflow:hidden;background:#000}
+#stage{height:100dvh;min-height:100dvh}
 #webcam{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 #output{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;background:#000}
-#topBar{
-  position:absolute;z-index:10;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;
-  display:flex;justify-content:space-between;align-items:center;pointer-events:none
-}
-#brand,#livePill{
-  padding:8px 11px;border-radius:999px;background:rgba(0,0,0,.48);
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:12px;font-weight:800
-}
-#livePill{color:#ddd}
-#topActions{display:flex;align-items:center;gap:8px;pointer-events:auto}
+#topBar{position:absolute;z-index:20;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+#brand,#livePill{padding:8px 11px;border-radius:999px;background:rgba(0,0,0,.48);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:12px;font-weight:800}
+#livePill{color:#ddd} #topActions{display:flex;align-items:center;gap:8px;pointer-events:auto}
 #soundBtn{font-size:16px}
 #liveDot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
-#startOverlay{
-  position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;
-  padding:22px 16px max(22px,env(safe-area-inset-bottom));background:linear-gradient(transparent 20%,rgba(0,0,0,.84))
-}
-#startBox{width:min(520px,100%);padding:22px;border-radius:28px;background:rgba(18,18,24,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);text-align:center;border:1px solid var(--line)}
-#startBox h1{margin:0 0 8px;font-size:28px}
-#startBox p{margin:0 0 16px;line-height:1.7;color:#ddd;font-size:14px}
-#startBtn{width:100%;background:linear-gradient(135deg,#ff4f9a,#8d5cff);font-size:16px}
-#startOverlay.hidden{display:none}
-#interactionGuide{
-  position:absolute;z-index:12;left:50%;top:max(58px,env(safe-area-inset-top) + 52px);
-  transform:translateX(-50%);width:auto;max-width:min(88vw,420px);
-  padding:9px 14px;border-radius:999px;background:rgba(0,0,0,.38);
-  border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);color:#fff;text-align:center;
-  font-size:13px;line-height:1.35;pointer-events:none;white-space:nowrap;opacity:.88
-}
-#interactionGuide.active{transform:translateX(-50%) translateY(-4px)}
-#guideTitle{font-size:14px;font-weight:900}
-#guideText{font-size:12px;color:#eee;line-height:1.5;margin-top:2px}
-#captureBar{
-  position:absolute;z-index:15;left:50%;bottom:max(22px,env(safe-area-inset-bottom) + 14px);transform:translateX(-50%);
-  display:flex;align-items:center;gap:10px
-}
+#interactionGuide{position:absolute;z-index:18;left:50%;top:max(58px,env(safe-area-inset-top) + 52px);transform:translateX(-50%);width:auto;max-width:min(88vw,420px);padding:9px 14px;border-radius:999px;background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#fff;text-align:center;font-size:13px;line-height:1.35;pointer-events:none;white-space:nowrap;opacity:.9}
+#interactionGuide.active{transform:translateX(-50%) translateY(-4px)} #guideTitle{font-size:14px;font-weight:900} #guideText{font-size:12px;color:#eee;line-height:1.5;margin-top:2px}
+#captureBar{position:absolute;z-index:20;left:50%;bottom:max(22px,env(safe-area-inset-bottom) + 14px);transform:translateX(-50%);display:flex;align-items:center;gap:10px}
 .captureBtn{width:58px;height:58px;padding:0;border-radius:50%;background:#fff;color:#111;border:4px solid rgba(255,255,255,.35);box-shadow:0 8px 30px rgba(0,0,0,.35)}
-.captureBtn.recording{background:#ff4050;color:#fff}
-#switchBtn{width:46px;height:46px;padding:0;background:rgba(0,0,0,.55);backdrop-filter:blur(10px)}
+.captureBtn.recording{background:#ff4050;color:#fff} #switchBtn{width:46px;height:46px;padding:0;background:rgba(0,0,0,.55);backdrop-filter:blur(10px)}
 .miniAction{width:46px;height:46px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(255,255,255,.18)}
-.hidden{display:none!important}
-#recordPreview,#testVideo{display:none!important}
-@media(max-width:680px){
-  #stage{height:100svh;min-height:100svh}
-  #interactionGuide{top:max(58px,env(safe-area-inset-top) + 52px);max-width:88vw}
-}
-@media(max-width:380px){
-  #interactionGuide{top:max(58px,env(safe-area-inset-top) + 52px);max-width:88vw}
-}
+.hidden{display:none!important} #recordPreview,#catVideoA,#catVideoB{display:none!important}
+#startOverlay{position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;padding:22px 16px max(22px,env(safe-area-inset-bottom));background:linear-gradient(transparent 20%,rgba(0,0,0,.84))}
+#startBox{width:min(520px,100%);padding:22px;border-radius:28px;background:rgba(18,18,24,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);text-align:center;border:1px solid var(--line)}
+#startBox h1{margin:0 0 8px;font-size:28px} #startBox p{margin:0 0 16px;line-height:1.7;color:#ddd;font-size:14px} #startBtn{width:100%;background:linear-gradient(135deg,#ff4f9a,#8d5cff);font-size:16px}
+#startOverlay.hidden{display:none}
+@media(max-width:680px){#interactionGuide{max-width:88vw}}
 </style>
 </head>
 <body>
-<div id="app">
-  <div id="stage">
-    <video id="webcam" autoplay muted playsinline webkit-playsinline></video>
-    <canvas id="output"></canvas>
-
-    <div id="topBar">
-      <div id="brand">🐱 AR 貓咪</div>
-      <div id="topActions"><button id="soundBtn" class="miniAction" title="開啟聲音" aria-label="開啟聲音">🔊</button><div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div></div>
-    </div>
-
-    <div id="interactionGuide">
-      <div id="guideTitle">🐱 跟貓咪互動</div>
-      <div id="guideText">👄 張嘴・✋ 張開手掌・貓咪會自動回應</div>
-    </div>
-
-    <div id="captureBar">
-      <button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button>
-      <button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button>
-      <button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button>
-      <button id="downloadBtn" class="miniAction hidden" title="儲存影片到手機" aria-label="儲存影片到手機">💾</button>
-    </div>
-
-    <div id="startOverlay">
-      <div id="startBox">
-        <h1>🐱 AR 貓咪</h1>
-        <p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p>
-        <button id="startBtn">📷 開始玩</button>
-        <div class="small" style="margin-top:10px">首次使用請允許相機權限；互動時會有貓叫與輕音樂</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Hidden playback element: used internally to composite the cat animation onto the AR canvas. -->
-  <video id="testVideo" muted playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
-  <video id="testVideoB" muted playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
-  <video id="recordPreview" controls playsinline webkit-playsinline aria-hidden="true"></video>
+<div id="app"><div id="stage">
+<video id="webcam" autoplay muted playsinline webkit-playsinline></video>
+<canvas id="output"></canvas>
+<div id="topBar"><div id="brand">🐱 AR 貓咪</div><div id="topActions"><button id="soundBtn" class="miniAction" title="關閉聲音" aria-label="關閉聲音">🔊</button><div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div></div></div>
+<div id="interactionGuide"><div id="guideTitle">🐱 跟貓咪互動</div><div id="guideText">👄 張嘴・✋ 張開手掌・貓咪會自動回應</div></div>
+<div id="captureBar"><button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button><button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button><button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button><button id="downloadBtn" class="miniAction hidden" title="儲存影片到手機" aria-label="儲存影片到手機">💾</button></div>
+<div id="startOverlay"><div id="startBox"><h1>🐱 AR 貓咪</h1><p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p><button id="startBtn">📷 開始玩</button><div style="margin-top:10px;color:#aaa;font-size:12px">首次使用請允許相機權限；互動時會有貓叫與輕音樂</div></div></div>
 </div>
-
+<video id="catVideoA" muted playsinline webkit-playsinline preload="auto"></video>
+<video id="catVideoB" muted playsinline webkit-playsinline preload="auto"></video>
+<video id="recordPreview" controls playsinline webkit-playsinline></video>
+</div>
 <script>
 'use strict';
 
-/* 音效對應：
-   chef  -> fry_potatoes.mp3
-   eat   -> slurp_ramen.mp3
-   drink -> open_bottled_coffee.mp3
-   其他影片 -> cat_sweet_voice4.mp3
-   background_music.mp3 為可選背景音樂；未上傳時不影響互動。
-*/
-
-/* =========================
-   影片對應
-========================= */
-const VIDEO_GROUPS = {
-  normal: [
-    'spider_cat_animation.mp4',
-    'champion_cat_animation.mp4',
-    'magic_cat_animation.mp4',
-    'sleep_cat_animation.mp4'
-  ],
-  mouthOpen: [
-    'chef_cat_animation.mp4',
-    'eat_cat_animation.mp4',
-    'drink_cat_animation.mp4'
-  ],
-  handOpen: [
-    'cry_cat_animation.mp4',
-    'work_cat_animation.mp4'
-  ]
+const VIDEO_GROUPS={
+  normal:['spider_cat_animation.mp4','champion_cat_animation.mp4','magic_cat_animation.mp4','sleep_cat_animation.mp4'],
+  mouthOpen:['chef_cat_animation.mp4','eat_cat_animation.mp4','drink_cat_animation.mp4'],
+  handOpen:['cry_cat_animation.mp4','work_cat_animation.mp4']
 };
+const ALL_VIDEOS=[...new Set([...VIDEO_GROUPS.normal,...VIDEO_GROUPS.mouthOpen,...VIDEO_GROUPS.handOpen])];
+const AUDIO_FILES={
+  cat:'cat_sweet_voice4.mp3',
+  chef:'fry_potatoes.mp3',
+  eat:'slurp_ramen.mp3',
+  drink:'open_bottled_coffee.mp3',
+  music:'background_music.mp3'
+};
+const $=id=>document.getElementById(id);
+const webcam=$('webcam'),canvas=$('output'),ctx=canvas.getContext('2d',{alpha:false});
+const recordCanvas=document.createElement('canvas'),recordCtx=recordCanvas.getContext('2d',{alpha:false});
+const beautyLayer=document.createElement('canvas'),beautyCtx=beautyLayer.getContext('2d');
+const catPlayers=[$('catVideoA'),$('catVideoB')];
+let activeCat=catPlayers[0],standbyCat=catPlayers[1];
+let stream=null,facingMode='user',arStarted=false;
+let faceLandmarks=null,handLandmarks=null;
+let currentState='normal',candidateState='normal',candidateCount=0;
+let currentVideo='',pendingState=null,switchBusy=false,videoToken=0;
+let normalIndex=0,mouthIndex=0,handIndex=0;
+let lastActionAt=0,lastFaceAt=0,lastHandAt=0,detectBusy=false;
+let recording=false,recorder=null,chunks=[],recordedBlob=null,recordedUrl=null;
+let audioCtx=null,audioDestination=null,audioEnabled=true;
+let musicAudio=null,musicSource=null,musicGain=null;
+let sfxGain=null,sfxSources=new Map(),musicFallbackTimer=null,musicStep=0;
+const FACE_INTERVAL=90,HAND_INTERVAL=180,STATE_CONFIRM=3,ACTION_COOLDOWN=500;
 
-const ALL_VIDEOS = [...new Set([
-  ...VIDEO_GROUPS.normal,
-  ...VIDEO_GROUPS.mouthOpen,
-  ...VIDEO_GROUPS.handOpen
-])];
-
-const $ = id => document.getElementById(id);
-const video = $('webcam');
-const canvas = $('output');
-const ctx = canvas.getContext('2d', {alpha:false});
-const testVideo = $('testVideo');
-const testVideoB = $('testVideoB');
-const recordCanvas = document.createElement('canvas');
-const recordCtx = recordCanvas.getContext('2d', {alpha:false});
-const beautyLayer = document.createElement('canvas');
-const beautyCtx = beautyLayer.getContext('2d', {alpha:true});
-
-let stream = null;
-let facingMode = 'user';
-let arStarted = false;
-let faceLandmarks = null;
-let handLandmarks = null;
-let currentState = 'none';
-let currentVideo = '';
-let activeCatVideo = testVideo;
-let loadingCatVideo = testVideoB;
-let catVideoToken = 0;
-let detectionBusy = false;
-let lastHandProcess = 0;
-let normalIndex = 0;
-let mouthIndex = 0;
-let handIndex = 0;
-let lastProcess = 0;
-let changingVideo = false;
-let videoChangeToken = 0;
-let candidateState = 'normal';
-let candidateCount = 0;
-let lastActionAt = 0;
-let recording = false;
-let recorder = null;
-let chunks = [];
-let recordedBlob = null;
-let recordedUrl = null;
-let beautyStrength = 100; // 固定最大
-let audioCtx = null;
-let audioDestination = null;
-let audioEnabled = false;
-let audioBus = null;
-let musicAudio = null;
-let catMeowAudio = null;
-let cookingAudio = null;
-let eatingAudio = null;
-let drinkingAudio = null;
-let audioSources = [];
-let audioFilesReady = false;
-let fxParticles = [];
-const STATE_CONFIRM_FRAMES = 4;
-const ACTION_COOLDOWN_MS = 450;
-const PROCESS_INTERVAL_MS = 90;
-
-/* =========================
-   UI / 診斷
-========================= */
-function log(msg){
-  console.log('[AR Cat]', msg);
-}
-function setStatus(){ /* internal diagnostic hook intentionally hidden from users */ }
-function overall(){ /* internal diagnostic hook intentionally hidden from users */ }
+function log(msg){console.log('[AR Cat]',msg)}
 function updateGuide(state){
-  const title = $('guideTitle');
-  const text = $('guideText');
-  const guide = $('interactionGuide');
-  if(state === 'mouthOpen'){
-    title.textContent = '👄 嘴巴互動';
-    text.textContent = '偵測到張嘴！貓咪切換成嘴巴互動影片。';
-    guide.classList.add('active');
-  }else if(state === 'handOpen'){
-    title.textContent = '✋ 手掌互動';
-    text.textContent = '偵測到張開手掌！貓咪切換成手掌互動影片。';
-    guide.classList.add('active');
-  }else{
-    title.textContent = '🐱 跟貓咪互動';
-    text.textContent = '👄 張嘴・✋ 張開手掌・貓咪會自動回應';
-    guide.classList.remove('active');
-  }
+  const title=$('guideTitle'),text=$('guideText'),g=$('interactionGuide');
+  if(state==='mouthOpen'){title.textContent='👄 嘴巴互動';text.textContent='張嘴！貓咪會做出吃喝料理互動。';g.classList.add('active')}
+  else if(state==='handOpen'){title.textContent='✋ 手掌互動';text.textContent='張開手掌！貓咪會回應你。';g.classList.add('active')}
+  else{title.textContent='🐱 跟貓咪互動';text.textContent='👄 張嘴・✋ 張開手掌・貓咪會自動回應';g.classList.remove('active')}
 }
-function diagnoseEnvironment(){
-  const localhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  const secure = window.isSecureContext || localhost;
-  if(secure){
-    setStatus('secureStatus','✅ HTTPS / 安全來源','ok');
-    log('HTTPS / 安全來源 OK');
-  }else{
-    setStatus('secureStatus','❌ 需要 HTTPS','bad');
-    log('請使用 GitHub Pages 或其他 HTTPS 網站');
-  }
-}
-
-/* =========================
-   FaceMesh
-========================= */
-const faceMesh = new FaceMesh({
-  locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-});
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  refineLandmarks: true,
-  minDetectionConfidence: 0.55,
-  minTrackingConfidence: 0.55
-});
-faceMesh.onResults(results => {
-  faceLandmarks = results.multiFaceLandmarks?.[0] || null;
-  setStatus('faceStatus', faceLandmarks ? '✅ 人臉已鎖定' : '⚪ 尋找人臉', faceLandmarks ? 'ok' : 'wait');
-});
-
-/* =========================
-   Hands
-========================= */
-const hands = new Hands({
-  locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-});
-hands.setOptions({
-  maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.55,
-  minTrackingConfidence: 0.55
-});
-hands.onResults(results => {
-  handLandmarks = results.multiHandLandmarks?.[0] || null;
-  setStatus('handStatus', handLandmarks ? '✋ 手掌已偵測' : '⚪ 尋找手掌', handLandmarks ? 'ok' : 'wait');
-});
-
-/* =========================
-   Camera
-========================= */
-async function startCamera(){
-  if(!navigator.mediaDevices?.getUserMedia) throw new Error('此瀏覽器不支援相機');
-  if(stream) stream.getTracks().forEach(t => t.stop());
-
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio:false,
-    video:{
-      facingMode:{ideal:facingMode},
-      width:{ideal:1280},
-      height:{ideal:720},
-      frameRate:{ideal:30,max:30}
-    }
-  });
-
-  video.srcObject = stream;
-  await video.play();
-  resizeCanvas();
-
-  setStatus('cameraStatus','✅ 相機已開啟','ok');
-  $('liveText').textContent = 'LIVE';
-  log(`相機啟動：${video.videoWidth}×${video.videoHeight}`);
-}
-
-async function switchCamera(){
-  if(!arStarted) return;
-  facingMode = facingMode === 'user' ? 'environment' : 'user';
-  try{
-    await startCamera();
-    faceLandmarks = null;
-    handLandmarks = null;
-    log(`鏡頭切換：${facingMode}`);
-  }catch(e){
-    log(`❌ 切換鏡頭失敗：${e.message}`);
-  }
-}
-
-/* =========================
-   Canvas / 手機顯示
-========================= */
-function resizeCanvas(){
-  const w = video.videoWidth || 1280;
-  const h = video.videoHeight || 720;
-  if(canvas.width !== w || canvas.height !== h){
-    canvas.width = w;
-    canvas.height = h;
-    recordCanvas.width = w;
-    recordCanvas.height = h;
-    beautyLayer.width = w;
-    beautyLayer.height = h;
-    setStatus('canvasStatus',`✅ ${w}×${h}`,'ok');
-  }
-}
-
-/* =========================
-   臉部幾何
-   所有 x 都轉成「鏡像後」座標，
-   因此貓咪會與自拍畫面真正對齊。
-========================= */
-function px(p){
-  return {x:(1-p.x)*canvas.width,y:p.y*canvas.height};
-}
-function dist(a,b){
-  return Math.hypot(a.x-b.x,a.y-b.y);
-}
-function facePoint(index){
-  return faceLandmarks?.[index] ? px(faceLandmarks[index]) : null;
-}
-function getFaceGeometry(){
-  if(!faceLandmarks) return null;
-
+function cleanName(n){return n.replace(/_animation\.mp4(?:\.mp4)?$/,'').replace(/\.mp4$/,'')}
+function px(p){return{x:(1-p.x)*canvas.width,y:p.y*canvas.height}}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function fp(i){return faceLandmarks?.[i]?px(faceLandmarks[i]):null}
+function faceGeometry(){
+  if(!faceLandmarks)return null;
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  for(const p of faceLandmarks){
-    const q = px(p);
-    minX=Math.min(minX,q.x); maxX=Math.max(maxX,q.x);
-    minY=Math.min(minY,q.y); maxY=Math.max(maxY,q.y);
-  }
-
-  // 眉毛上緣：左右眉毛的上方點，避免用臉框 minY 造成貓咪上下跳動
-  const browIds = [105,107,66,336,334,296];
-  const brows = browIds.map(facePoint).filter(Boolean);
-  const browY = brows.reduce((s,p)=>s+p.y,0)/Math.max(1,brows.length);
-
-  // forehead/head-top 取 10，再與臉框 top 做保守融合
-  const forehead = facePoint(10);
-  const headTop = forehead ? Math.min(forehead.y, minY + (maxY-minY)*0.06) : minY;
-
-  const leftCheek = facePoint(234);
-  const rightCheek = facePoint(454);
-  const faceWidth = leftCheek && rightCheek ? dist(leftCheek,rightCheek) : (maxX-minX);
-
-  const center = facePoint(9) || {x:(minX+maxX)/2,y:(minY+maxY)/2};
-
-  return {minX,maxX,minY,maxY,centerX:center.x,centerY:center.y,browY,headTop,faceWidth,faceHeight:maxY-minY};
+  for(const p of faceLandmarks){const q=px(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y)}
+  const brows=[105,107,66,336,334,296].map(fp).filter(Boolean);
+  const browY=brows.reduce((s,p)=>s+p.y,0)/Math.max(1,brows.length);
+  const forehead=fp(10);const headTop=forehead?Math.min(forehead.y,minY+(maxY-minY)*.08):minY;
+  const l=fp(234),r=fp(454),c=fp(9)||{x:(minX+maxX)/2,y:(minY+maxY)/2};
+  const faceWidth=l&&r?dist(l,r):maxX-minX;
+  return{minX,maxX,minY,maxY,browY,headTop,centerX:c.x,centerY:c.y,faceWidth,faceHeight:maxY-minY};
 }
-
-/* =========================
-   嘴巴偵測
-   用「嘴巴開口 / 臉寬」比例，
-   比固定 .045 更能適應不同距離與臉型。
-========================= */
 function mouthOpen(){
-  if(!faceLandmarks) return false;
-  const upper = facePoint(13);
-  const lower = facePoint(14);
-  const left = facePoint(61);
-  const right = facePoint(291);
-  if(!upper || !lower || !left || !right) return false;
-
-  const opening = dist(upper,lower);
-  const mouthWidth = Math.max(1,dist(left,right));
-  const ratio = opening / mouthWidth;
-
-  // hysteresis：張開與關閉使用不同門檻，避免臨界抖動
-  return ratio > 0.22;
+  if(!faceLandmarks)return false;
+  const u=fp(13),l=fp(14),a=fp(61),b=fp(291);if(!u||!l||!a||!b)return false;
+  return dist(u,l)/Math.max(1,dist(a,b))>.22;
 }
-
-/* =========================
-   手掌偵測
-   以每根手指的伸展程度 + 掌心比例判斷，
-   比單純比較 y 座標更適合手機不同角度。
-========================= */
 function handOpen(){
-  if(!handLandmarks) return false;
-  const p = i => handLandmarks[i];
+  if(!handLandmarks)return false;
+  const p=i=>handLandmarks[i],w=p(0),m=p(9);const palm=Math.max(.001,Math.hypot(w.x-m.x,w.y-m.y));
+  let ext=0;for(const [tip,pip] of [[8,6],[12,10],[16,14],[20,18]]){const td=Math.hypot(p(tip).x-w.x,p(tip).y-w.y),pd=Math.hypot(p(pip).x-w.x,p(pip).y-w.y);if(td>pd*1.10&&td>palm*1.60)ext++}
+  const thumb=Math.hypot(p(4).x-p(5).x,p(4).y-p(5).y)>palm*.80;
+  return ext>=3&&thumb;
+}
+function rawState(){if(mouthOpen())return'mouthOpen';if(handOpen())return'handOpen';return'normal'}
+function stableState(raw){if(raw!==candidateState){candidateState=raw;candidateCount=1;return currentState}candidateCount++;return candidateCount>=STATE_CONFIRM?raw:currentState}
 
-  const wrist = p(0);
-  const middleMcp = p(9);
-  const palm = Math.max(0.001,Math.hypot(wrist.x-middleMcp.x,wrist.y-middleMcp.y));
-
-  const fingers = [
-    [8,6],[12,10],[16,14],[20,18]
-  ];
-
-  let extended = 0;
-  for(const [tip,pip] of fingers){
-    const tipDist = Math.hypot(p(tip).x-wrist.x,p(tip).y-wrist.y);
-    const pipDist = Math.hypot(p(pip).x-wrist.x,p(pip).y-wrist.y);
-    if(tipDist > pipDist*1.12 && tipDist > palm*1.65) extended++;
-  }
-
-  // 拇指用 tip 到 index MCP 的距離
-  const thumbTip = p(4);
-  const indexMcp = p(5);
-  const thumbOpen = Math.hypot(thumbTip.x-indexMcp.x,thumbTip.y-indexMcp.y) > palm*0.85;
-
-  return extended >= 3 && thumbOpen;
+function resizeCanvas(){
+  const w=webcam.videoWidth||1280,h=webcam.videoHeight||720;
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;recordCanvas.width=w;recordCanvas.height=h;beautyLayer.width=w;beautyLayer.height=h}
+}
+async function startCamera(){
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error('此瀏覽器不支援相機');
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}}});
+  webcam.srcObject=stream;await webcam.play();resizeCanvas();$('liveText').textContent='LIVE';
+}
+async function switchCamera(){
+  if(!arStarted)return;const old=facingMode;facingMode=facingMode==='user'?'environment':'user';
+  try{await startCamera();faceLandmarks=null;handLandmarks=null;log('鏡頭切換 '+facingMode)}catch(e){facingMode=old;log('鏡頭切換失敗 '+e.message)}
 }
 
-function detectRawState(){
-  // 嘴巴優先，符合互動直覺；同時張嘴+張手時仍先播放嘴巴影片
-  if(mouthOpen()) return 'mouthOpen';
-  if(handOpen()) return 'handOpen';
-  return 'normal';
+function drawBeauty(){
+  const g=faceGeometry();if(!g)return;
+  beautyCtx.clearRect(0,0,beautyLayer.width,beautyLayer.height);beautyCtx.drawImage(canvas,0,0);
+  const padX=g.faceWidth*.24,padY=g.faceHeight*.18,x=Math.max(0,g.minX-padX),y=Math.max(0,g.minY-padY),w=Math.min(canvas.width-x,g.maxX-g.minX+padX*2),h=Math.min(canvas.height-y,g.maxY-g.minY+padY*2);
+  ctx.save();ctx.beginPath();ctx.ellipse(g.centerX,g.centerY,g.faceWidth*.60,g.faceHeight*.66,0,0,Math.PI*2);ctx.clip();ctx.globalAlpha=.32;ctx.filter='blur(4px)';ctx.drawImage(beautyLayer,x,y,w,h,x,y,w,h);ctx.restore();
+}
+function drawCat(){
+  if(!faceLandmarks||activeCat.readyState<2)return;const g=faceGeometry();if(!g)return;
+  const vw=activeCat.videoWidth||1,vh=activeCat.videoHeight||1,catW=Math.max(120,Math.min(canvas.width*.62,g.faceWidth*.92)),catH=catW*Math.max(.85,Math.min(1.35,vh/vw));
+  const x=g.centerX-catW/2,y=g.browY-g.faceHeight*.04-catH;ctx.drawImage(activeCat,x,y,catW,catH);
+}
+function drawAR(){
+  if(!webcam.videoWidth)return;resizeCanvas();ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(webcam,0,0,canvas.width,canvas.height);ctx.restore();
+  drawBeauty();drawCat();
 }
 
-function getStableState(raw){
-  if(raw !== candidateState){
-    candidateState = raw;
-    candidateCount = 1;
-    return currentState === 'none' ? raw : currentState;
-  }
-  candidateCount++;
-  return candidateCount >= STATE_CONFIRM_FRAMES
-    ? raw
-    : (currentState === 'none' ? raw : currentState);
+function nextNormal(){return VIDEO_GROUPS.normal[normalIndex++%VIDEO_GROUPS.normal.length]}
+function nextMouth(){return VIDEO_GROUPS.mouthOpen[mouthIndex++%VIDEO_GROUPS.mouthOpen.length]}
+function nextHand(){return VIDEO_GROUPS.handOpen[handIndex++%VIDEO_GROUPS.handOpen.length]}
+function setVideoSource(player,name){
+  const src=`./${encodeURIComponent(name)}`;
+  if(player.dataset.src===src)return;
+  player.pause();player.dataset.src=src;player.src=src;player.load();
 }
-
-/* =========================
-   影片
-========================= */
-function cleanName(name){
-  return name.replace(/_animation\.mp4\.mp4$/,'').replace(/_animation\.mp4$/,'').replace(/\.mp4$/,'');
+function waitVideoReady(player,timeout=3200){
+  if(player.readyState>=2)return Promise.resolve(true);
+  return new Promise(resolve=>{let done=false;const finish=ok=>{if(done)return;done=true;player.removeEventListener('loadeddata',onLoad);player.removeEventListener('error',onErr);clearTimeout(timer);resolve(ok)};const onLoad=()=>finish(true),onErr=()=>finish(false),timer=setTimeout(()=>finish(false),timeout);player.addEventListener('loadeddata',onLoad,{once:true});player.addEventListener('error',onErr,{once:true})})
 }
-function nextNormalVideo(){
-  const name = VIDEO_GROUPS.normal[normalIndex % VIDEO_GROUPS.normal.length];
-  normalIndex++;
-  return name;
+async function playCat(name,reason='normal'){
+  if(!name)return;
+  const token=++videoToken;
+  const already=currentVideo===name&&activeCat.readyState>=2;
+  if(already){activeCat.currentTime=0;activeCat.play().catch(()=>{});playSfx(name);return}
+  const candidate=(standbyCat.dataset.src===`./${encodeURIComponent(name)}`)?standbyCat:standbyCat;
+  setVideoSource(candidate,name);
+  const ok=await waitVideoReady(candidate);
+  if(token!==videoToken)return;
+  if(!ok){log('影片載入失敗 '+name);return}
+  candidate.currentTime=0;candidate.muted=true;
+  const playPromise=candidate.play();if(playPromise)await playPromise.catch(()=>{});
+  if(token!==videoToken){candidate.pause();return}
+  const old=activeCat;activeCat=candidate;standbyCat=old;currentVideo=name;
+  setVideoSource(standbyCat,nextPreloadFor(name,reason));
+  playSfx(name);log('🐱 '+name);
 }
-function nextMouthVideo(){
-  const name = VIDEO_GROUPS.mouthOpen[mouthIndex % VIDEO_GROUPS.mouthOpen.length];
-  mouthIndex++;
-  return name;
+function nextPreloadFor(name,reason){
+  const group=VIDEO_GROUPS[reason]||VIDEO_GROUPS.normal;const i=Math.max(0,group.indexOf(name));return group[(i+1)%group.length]||VIDEO_GROUPS.normal[0]}
+function playSfx(name){
+  if(!audioEnabled||!audioCtx)return;
+  let key='cat';if(name.includes('chef_cat_animation'))key='chef';else if(name.includes('eat_cat_animation'))key='eat';else if(name.includes('drink_cat_animation'))key='drink';
+  const a=sfxSources.get(key);if(!a)return;a.currentTime=0;a.play().catch(e=>log('音效播放失敗 '+e.message));
 }
-function nextHandVideo(){
-  const name = VIDEO_GROUPS.handOpen[handIndex % VIDEO_GROUPS.handOpen.length];
-  handIndex++;
-  return name;
-}
-function soundForVideo(name){
-  const n = String(name || '').toLowerCase();
-  if(n.includes('chef_cat_animation')) return cookingAudio;
-  if(n.includes('eat_cat_animation')) return eatingAudio;
-  if(n.includes('drink_cat_animation')) return drinkingAudio;
-  return catMeowAudio;
-}
-
-function safePlayAudio(audio){
-  if(!audioEnabled || !audio) return;
-  try{
-    audio.currentTime = 0;
-    const p = audio.play();
-    if(p?.catch) p.catch(()=>{});
-  }catch(e){}
-}
-
-function playInteractionSound(name){
-  if(!audioEnabled) return;
-  const audio = soundForVideo(name);
-  safePlayAudio(audio);
-}
-
-function stopAllSfx(){
-  [catMeowAudio,cookingAudio,eatingAudio,drinkingAudio].forEach(a=>{
-    if(!a) return;
-    try{ a.pause(); a.currentTime=0; }catch(e){}
-  });
-}
-
-function createAudioElement(file, loop=false){
-  const a = new Audio(`./${file}`);
-  a.preload = 'auto';
-  a.loop = loop;
-  a.playsInline = true;
-  a.crossOrigin = 'anonymous';
-  a.addEventListener('error',()=>log(`⚠️ 音效找不到：${file}`),{once:true});
-  a.load();
-  return a;
+function requestState(state){
+  if(state===currentState&&!switchBusy)return;
+  if(switchBusy){pendingState=state;return}
+  switchBusy=true;currentState=state;updateGuide(state);
+  let name=state==='mouthOpen'?nextMouth():state==='handOpen'?nextHand():nextNormal();
+  const reason=state==='mouthOpen'?'mouthOpen':state==='handOpen'?'handOpen':'normal';
+  playCat(name,reason).finally(()=>{switchBusy=false;const p=pendingState;pendingState=null;if(p&&p!==currentState)requestState(p)})
 }
 
 async function initAudio(){
-  if(audioCtx){
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-    return;
-  }
-
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if(!Ctx) throw new Error('此瀏覽器不支援 Web Audio');
-
-  audioCtx = new Ctx();
-  audioDestination = audioCtx.createMediaStreamDestination();
-  audioBus = audioCtx.createGain();
-  audioBus.gain.value = 0.9;
-
-  catMeowAudio = createAudioElement('cat_sweet_voice4.mp3');
-  cookingAudio = createAudioElement('fry_potatoes.mp3');
-  eatingAudio = createAudioElement('slurp_ramen.mp3');
-  drinkingAudio = createAudioElement('open_bottled_coffee.mp3');
-
-  // 背景音樂為可選資源：GitHub 有 background_music.mp3 才會啟用。
-  musicAudio = createAudioElement('background_music.mp3', true);
-
-  const connect = (audio, gainValue, loop=false) => {
-    const source = audioCtx.createMediaElementSource(audio);
-    const gain = audioCtx.createGain();
-    gain.gain.value = gainValue;
-    source.connect(gain);
-    gain.connect(audioBus);
-    audioSources.push({audio,source,gain,loop});
-  };
-
-  connect(musicAudio, 0.16, true);
-  connect(catMeowAudio, 0.78);
-  connect(cookingAudio, 0.72);
-  connect(eatingAudio, 0.72);
-  connect(drinkingAudio, 0.72);
-
-  // 一條總音訊總線，同時送到手機喇叭與錄影音軌。
-  audioBus.connect(audioCtx.destination);
-  audioBus.connect(audioDestination);
-
-  await audioCtx.resume();
-  audioEnabled = true;
-  audioFilesReady = true;
-
-  // 背景音樂不存在時，play() 會自然失敗，不影響其他音效。
-  musicAudio.play().catch(()=>{});
+  if(audioCtx){if(audioCtx.state==='suspended')await audioCtx.resume();return}
+  const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)throw new Error('Web Audio 不支援');
+  audioCtx=new Ctx();audioDestination=audioCtx.createMediaStreamDestination();
+  musicGain=audioCtx.createGain();sfxGain=audioCtx.createGain();musicGain.gain.value=.12;sfxGain.gain.value=.9;
+  musicGain.connect(audioCtx.destination);musicGain.connect(audioDestination);sfxGain.connect(audioCtx.destination);sfxGain.connect(audioDestination);
+  const make=(file,key,loop=false)=>{const a=new Audio('./'+file);a.preload='auto';a.loop=loop;a.playsInline=true;a.setAttribute('playsinline','');a.crossOrigin='anonymous';const source=audioCtx.createMediaElementSource(a);source.connect(key==='music'?musicGain:sfxGain);return a};
+  sfxSources.set('cat',make(AUDIO_FILES.cat,'sfx'));sfxSources.set('chef',make(AUDIO_FILES.chef,'sfx'));sfxSources.set('eat',make(AUDIO_FILES.eat,'sfx'));sfxSources.set('drink',make(AUDIO_FILES.drink,'sfx'));
+  // Optional real background music. If it is not uploaded, use a very soft built-in ambience so the app never fails.
+  musicAudio=make(AUDIO_FILES.music,'music',true);
+  musicAudio.addEventListener('error',()=>{musicAudio=null;startFallbackMusic()},{once:true});
+  try{await musicAudio.play()}catch(e){/* autoplay is handled by the start button gesture */}
+  await audioCtx.resume();audioEnabled=true;
+  $('soundBtn').textContent='🔊';$('soundBtn').title='關閉聲音';
+  if(musicAudio){musicAudio.volume=1;musicGain.gain.value=.12;musicAudio.play().catch(()=>{})}
 }
-
-async function toggleSound(){
-  try{
-    if(!audioCtx) await initAudio();
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-    audioEnabled = !audioEnabled;
-    $('soundBtn').textContent = audioEnabled ? '🔊' : '🔇';
-    $('soundBtn').title = audioEnabled ? '關閉聲音' : '開啟聲音';
-    $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
-    if(audioEnabled){
-      musicAudio?.play().catch(()=>{});
-    }else{
-      musicAudio?.pause();
-      stopAllSfx();
-    }
-  }catch(e){
-    log(`⚠️ 音效無法啟用：${e.message}`);
-  }
+function startFallbackMusic(){
+  if(musicFallbackTimer||!audioCtx)return;let step=0;const notes=[261.63,329.63,392,329.63,293.66,349.23,440,349.23];
+  musicFallbackTimer=setInterval(()=>{if(!audioEnabled)return;const now=audioCtx.currentTime,f=notes[step++%notes.length];const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.012,now+.02);g.gain.exponentialRampToValueAtTime(.0001,now+.25);o.connect(g);g.connect(musicGain);o.start(now);o.stop(now+.28)},360)
 }
+async function toggleSound(){try{if(!audioCtx)await initAudio();if(audioCtx.state==='suspended')await audioCtx.resume();audioEnabled=!audioEnabled;if(musicGain)musicGain.gain.value=audioEnabled?.12:0;if(sfxGain)sfxGain.gain.value=audioEnabled?.9:0;if(audioEnabled&&musicAudio)musicAudio.play().catch(()=>{});else if(musicAudio)musicAudio.pause();$('soundBtn').textContent=audioEnabled?'🔊':'🔇';$('soundBtn').title=audioEnabled?'關閉聲音':'開啟聲音'}catch(e){log('音效初始化失敗 '+e.message)}}
 
-function waitForVideoReady(v, timeout=1800){
-  return new Promise(resolve=>{
-    if(v.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA){ resolve(true); return; }
-    let done=false;
-    const finish=ok=>{
-      if(done) return;
-      done=true;
-      v.removeEventListener('canplay',onReady);
-      v.removeEventListener('loadeddata',onReady);
-      v.removeEventListener('error',onError);
-      clearTimeout(timer);
-      resolve(ok);
-    };
-    const onReady=()=>finish(true);
-    const onError=()=>finish(false);
-    const timer=setTimeout(()=>finish(false),timeout);
-    v.addEventListener('canplay',onReady,{once:true});
-    v.addEventListener('loadeddata',onReady,{once:true});
-    v.addEventListener('error',onError,{once:true});
-  });
-}
-
-function bindCatVideoEnded(v){
-  v.addEventListener('ended',()=>{
-    if(v !== activeCatVideo) return;
-    if(currentState === 'normal'){
-      if(detectRawState() === 'normal') requestVideoChange(nextNormalVideo());
-    }else if(detectRawState() === 'normal'){
-      currentState='normal';
-      updateGuide('normal');
-      requestVideoChange(nextNormalVideo());
-    }
-  });
-}
-bindCatVideoEnded(testVideo);
-bindCatVideoEnded(testVideoB);
-
-async function playCat(name){
-  if(!name || name === currentVideo) return;
-  const token = ++catVideoToken;
-  const v = loadingCatVideo;
-
-  try{
-    v.pause();
-    v.src = `./${encodeURIComponent(name)}`;
-    v.load();
-    const ready = await waitForVideoReady(v, 1800);
-    if(token !== catVideoToken) return;
-    if(!ready){
-      log(`⚠️ 影片載入較慢：${name}`);
-      return;
-    }
-
-    v.currentTime = 0;
-    stopAllSfx();
-    const old = activeCatVideo;
-    activeCatVideo = v;
-    loadingCatVideo = old;
-    currentVideo = name;
-    old.pause();
-    v.play().catch(()=>{});
-    playInteractionSound(name);
-    setStatus('catStatus',`✅ ${cleanName(name)}`,'ok');
-    log(`🐱 播放：${name}`);
-  }catch(e){
-    log(`⚠️ 影片切換失敗：${name} / ${e.message}`);
-  }
-}
-
-function requestVideoChange(name){
-  // 不讓 AR 主迴圈 await 影片載入，避免辨識與畫面卡住。
-  playCat(name);
-}
-
-function changeARVideo(state){
-  if(state === currentState && currentVideo) return;
-  currentState = state;
-  updateGuide(state);
-
-  if(state === 'mouthOpen') requestVideoChange(nextMouthVideo());
-  else if(state === 'handOpen') requestVideoChange(nextHandVideo());
-  else if(!currentVideo || activeCatVideo.ended) requestVideoChange(nextNormalVideo());
-}
-
-/* =========================
-   美顏：固定 MAX
-   先複製原畫面到 offscreen，再以柔焦疊回臉部，
-   避免 canvas 自我取樣造成重複模糊。
-========================= */
-function drawBeauty(){
-  if(!faceLandmarks) return;
-  const g = getFaceGeometry();
-  if(!g) return;
-
-  const padX = g.faceWidth * 0.24;
-  const padY = g.faceHeight * 0.20;
-  const x = Math.max(0,g.minX-padX);
-  const y = Math.max(0,g.minY-padY);
-  const w = Math.min(canvas.width-x,(g.maxX-g.minX)+padX*2);
-  const h = Math.min(canvas.height-y,(g.maxY-g.minY)+padY*2);
-
-  beautyCtx.clearRect(0,0,beautyLayer.width,beautyLayer.height);
-  beautyCtx.drawImage(canvas,0,0);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(g.centerX,g.centerY,g.faceWidth*0.60,g.faceHeight*0.66,0,0,Math.PI*2);
-  ctx.clip();
-  ctx.globalAlpha = 0.20 + beautyStrength/100*0.12;
-  ctx.filter = 'blur(4px)';
-  ctx.drawImage(beautyLayer,x,y,w,h,x,y,w,h);
-  ctx.restore();
-}
-
-/* =========================
-   貓咪定位
-   目標：眉毛正上方；允許影片超過頭頂。
-   寬度依臉寬縮放，避免人靠近鏡頭時突然巨大。
-========================= */
-function drawCat(){
-  if(!faceLandmarks || activeCatVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-  const g = getFaceGeometry();
-  if(!g) return;
-
-  const catWidth = Math.max(120,Math.min(canvas.width*0.62,g.faceWidth*0.92));
-  const vw = activeCatVideo.videoWidth || 1;
-  const vh = activeCatVideo.videoHeight || 1;
-  const aspect = vh/vw;
-  const catHeight = catWidth * Math.max(0.85,Math.min(1.35,aspect));
-
-  const x = g.centerX - catWidth/2;
-
-  // 讓貓咪底部落在眉毛上方；往上偏移 0.18 個貓高，保留「超過頭頂」空間
-  const bottomY = g.browY - g.faceHeight*0.04;
-  const y = bottomY - catHeight;
-
-  ctx.save();
-  ctx.globalAlpha = 1;
-  ctx.drawImage(activeCatVideo,x,y,catWidth,catHeight);
-  ctx.restore();
-}
-
-/* =========================
-   AR 畫面
-========================= */
-function drawAR(){
-  if(!video.videoWidth) return;
-  resizeCanvas();
-
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // 自拍鏡像
-  ctx.save();
-  ctx.translate(canvas.width,0);
-  ctx.scale(-1,1);
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  ctx.restore();
-
-  drawBeauty();
-  drawCat();
-  drawCatFX();
-  setStatus('canvasStatus','✅ AR 即時運作','ok');
-}
-
-/* =========================
-   錄影 / 拍照
-========================= */
-function updateRecordCanvas(){
-  if(!canvas.width) return;
-  if(recordCanvas.width !== canvas.width || recordCanvas.height !== canvas.height){
-    recordCanvas.width = canvas.width;
-    recordCanvas.height = canvas.height;
-  }
-  recordCtx.drawImage(canvas,0,0,recordCanvas.width,recordCanvas.height);
-}
-function recordFrame(){
-  if(!recording) return;
-  updateRecordCanvas();
-  requestAnimationFrame(recordFrame);
-}
-function supportedMime(){
-  if(!window.MediaRecorder) return '';
-  const types = [
-    'video/mp4;codecs=avc1.42E01E',
-    'video/mp4',
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm'
-  ];
-  return types.find(t=>MediaRecorder.isTypeSupported?.(t)) || '';
-}
-function addCatParticles(){
-  const g=getFaceGeometry();
-  if(!g) return;
-  for(let i=0;i<4;i++) fxParticles.push({
-    x:g.centerX+(Math.random()-.5)*g.faceWidth,
-    y:g.headTop-g.faceHeight*.08+(Math.random()-.5)*g.faceHeight*.18,
-    vx:(Math.random()-.5)*0.5,
-    vy:-0.35-Math.random()*0.35,
-    life:1,
-    size:4+Math.random()*3
-  });
-}
-
-function drawCatFX(){
-  // 不使用貓耳，僅在互動觸發時留下很輕的肉球粒子，避免遮住臉。
-  if(!fxParticles.length) return;
-  ctx.save();
-  for(const p of fxParticles){
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 0.035;
-    if(p.life <= 0) continue;
-    ctx.globalAlpha = p.life * 0.7;
-    ctx.font = `${p.size*2}px sans-serif`;
-    ctx.fillText('🐾', p.x, p.y);
-  }
-  ctx.restore();
-  fxParticles = fxParticles.filter(p=>p.life>0);
-}
-
-
+function supportedMime(){if(!window.MediaRecorder)return'';const types=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];return types.find(t=>MediaRecorder.isTypeSupported?.(t))||''}
+function updateRecordCanvas(){if(!canvas.width)return;recordCtx.drawImage(canvas,0,0,recordCanvas.width,recordCanvas.height)}
+function recordFrame(){if(!recording)return;updateRecordCanvas();requestAnimationFrame(recordFrame)}
 async function toggleRecording(){
-  if(!arStarted){ log('請先啟動 AR'); return; }
-  if(recording){ recorder?.stop(); return; }
-  if(!recordCanvas.captureStream || !window.MediaRecorder){ log('❌ 此瀏覽器不支援錄影'); return; }
+  if(!arStarted)return;if(recording){try{recorder.stop()}catch(e){}return}
+  if(!recordCanvas.captureStream||!window.MediaRecorder){alert('此瀏覽器不支援網頁錄影，請更新 Safari / Chrome / Edge。');return}
+  try{await initAudio();const vs=recordCanvas.captureStream(30),ms=new MediaStream(vs.getVideoTracks());if(audioDestination)audioDestination.stream.getAudioTracks().forEach(t=>ms.addTrack(t));const mime=supportedMime();recorder=mime?new MediaRecorder(ms,{mimeType:mime}):new MediaRecorder(ms);chunks=[];recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};recorder.onstop=()=>{recordedBlob=new Blob(chunks,{type:recorder.mimeType||mime||'video/webm'});if(recordedUrl)URL.revokeObjectURL(recordedUrl);recordedUrl=URL.createObjectURL(recordedBlob);$('recordPreview').src=recordedUrl;recording=false;$('recordBtn').classList.remove('recording');$('recordBtn').textContent='●';$('recordBtn').title='開始錄影';$('downloadBtn').classList.remove('hidden');$('guideTitle').textContent='🎬 錄影完成';$('guideText').textContent='點擊 💾 儲存影片到手機';$('interactionGuide').classList.add('active');};recorder.start(250);recording=true;$('downloadBtn').classList.add('hidden');$('recordBtn').classList.add('recording');$('recordBtn').textContent='■';$('recordBtn').title='停止錄影';recordFrame()}catch(e){log('錄影初始化失敗 '+e.message);alert('錄影啟動失敗，請重新載入頁面或使用最新版 Safari / Chrome。')}}
+async function saveBlob(blob,filename){
+  if(!blob)return;
+  const file=new File([blob],filename,{type:blob.type||'application/octet-stream'});
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({title:'AR 貓咪',files:[file]});return}catch(e){if(e.name==='AbortError')return}
+  }
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){setTimeout(()=>window.open(url,'_blank','noopener,noreferrer'),250)}
+  setTimeout(()=>URL.revokeObjectURL(url),10000)
+}
+async function saveVideo(){if(!recordedBlob){alert('請先錄製一段影片。');return}const ext=recordedBlob.type.includes('mp4')?'mp4':'webm';await saveBlob(recordedBlob,`AR_cat_${Date.now()}.${ext}`)}
+async function snapshot(){if(!arStarted)return;updateRecordCanvas();recordCanvas.toBlob(async blob=>{if(blob)await saveBlob(blob,`AR_cat_${Date.now()}.jpg`)},'image/jpeg',.95)}
 
+async function detectLoop(){
+  if(!arStarted||detectBusy)return;
+  const now=performance.now();
+  const faceDue=now-lastFaceAt>=FACE_INTERVAL;
+  const handDue=now-lastHandAt>=HAND_INTERVAL;
+  if(!faceDue&&!handDue)return;
+  detectBusy=true;
   try{
-    await initAudio();
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-
-    const videoStream = recordCanvas.captureStream(30);
-    const mixedStream = new MediaStream(videoStream.getVideoTracks());
-    audioDestination.stream.getAudioTracks().forEach(t=>mixedStream.addTrack(t));
-
-    const mime = supportedMime();
-    recorder = mime ? new MediaRecorder(mixedStream,{mimeType:mime}) : new MediaRecorder(mixedStream);
-  }catch(e){
-    log(`❌ 錄影初始化失敗：${e.message}`);
-    return;
-  }
-
-  chunks=[];
-  recorder.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
-  recorder.onerror=e=>log(`❌ 錄影錯誤：${e.error?.message||'unknown'}`);
-  recorder.onstop=()=>{
-    const type=recorder.mimeType || 'video/webm';
-    recordedBlob=new Blob(chunks,{type});
-    if(recordedUrl) URL.revokeObjectURL(recordedUrl);
-    recordedUrl=URL.createObjectURL(recordedBlob);
-    $('recordPreview').src=recordedUrl;
-    recording=false;
-    $('recordBtn').classList.remove('recording');
-    $('recordBtn').textContent='●';
-    $('recordBtn').title='開始錄影';
-    $('downloadBtn').classList.remove('hidden');
-    $('guideTitle').textContent='🎬 錄影完成';
-    $('guideText').textContent='點擊 💾 儲存影片到手機';
-    $('interactionGuide').classList.add('active');
-    log('✅ 錄影完成，音效已混入');
-  };
-
-  recorder.start(1000);
-  recording=true;
-  if(audioEnabled) musicAudio?.play().catch(()=>{});
-  $('recordBtn').classList.add('recording');
-  $('recordBtn').textContent='■';
-  $('recordBtn').title='停止錄影';
-  $('downloadBtn').classList.add('hidden');
-  log(`🔴 開始錄影：${recorder.mimeType||'瀏覽器格式'}`);
-  recordFrame();
+    if(faceDue){lastFaceAt=now;await faceMesh.send({image:webcam});}
+    if(handDue){lastHandAt=performance.now();await hands.send({image:webcam});}
+  }catch(e){/* transient model errors are ignored */}
+  finally{detectBusy=false}
 }
-function saveVideo(){
-  if(!recordedBlob || !recordedUrl){ log('目前沒有可儲存的影片'); return; }
-  const ext=recordedBlob.type.includes('mp4')?'mp4':'webm';
-  const filename=`AR_cat_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
-  const a=document.createElement('a');
-  a.href=recordedUrl;
-  a.download=filename;
-  a.rel='noopener';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+function renderLoop(){if(!arStarted)return;drawAR();requestAnimationFrame(renderLoop)}
+function interactionLoop(){if(!arStarted)return;const raw=rawState(),stable=stableState(raw);if(stable!==currentState&&performance.now()-lastActionAt>ACTION_COOLDOWN){lastActionAt=performance.now();requestState(stable)};requestAnimationFrame(interactionLoop)}
 
-  // iOS Safari 常忽略 download；開啟影片後可用分享/長按儲存。
-  if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
-    setTimeout(()=>window.open(recordedUrl,'_blank','noopener,noreferrer'),180);
-  }
-  log('💾 已準備影片儲存');
-}
-function snapshot(){
-  if(!arStarted){log('請先啟動 AR');return}
-  updateRecordCanvas();
-  recordCanvas.toBlob(blob=>{
-    if(!blob)return;
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download=`AR_cat_${Date.now()}.jpg`;
-    document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
-    log('📸 照片已儲存');
-  },'image/jpeg',0.95);
-}
+const faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.55,minTrackingConfidence:.55});faceMesh.onResults(r=>{faceLandmarks=r.multiFaceLandmarks?.[0]||null});
+const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.55});hands.onResults(r=>{handLandmarks=r.multiHandLandmarks?.[0]||null});
 
-/* =========================
-   AR Loop
-========================= */
-function runDetection(ts){
-  if(detectionBusy || !video.videoWidth) return;
-  if(ts-lastProcess < PROCESS_INTERVAL_MS) return;
-  lastProcess=ts;
-  detectionBusy=true;
-
-  // 臉部每次偵測；手掌稍低頻，降低手機負載。
-  faceMesh.send({image:video})
-    .then(()=>{
-      const now=performance.now();
-      if(now-lastHandProcess >= 150){
-        lastHandProcess=now;
-        return hands.send({image:video});
-      }
-    })
-    .catch(e=>log(`⚠️ AI 偵測：${e.message}`))
-    .finally(()=>{ detectionBusy=false; });
-}
-
-function arLoop(ts){
-  if(!arStarted) return;
-
-  drawAR();
-  runDetection(ts);
-
-  if(faceLandmarks){
-    const raw=detectRawState();
-    const state=getStableState(raw);
-    if(state!==currentState && performance.now()-lastActionAt>ACTION_COOLDOWN_MS){
-      lastActionAt=performance.now();
-      changeARVideo(state);
-      if(state!=='normal') addCatParticles();
-    }
-  }else if(currentState!=='normal'){
-    currentState='normal';
-    updateGuide('normal');
-  }
-
-  requestAnimationFrame(arLoop);
-}
-
-/* =========================
-   Start
-========================= */
+catPlayers.forEach(v=>{v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');});
 $('startBtn').onclick=async()=>{
-  const localhost=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-  if(!window.isSecureContext && !localhost){
-    $('liveText').textContent = '需要 HTTPS';
-    return;
-  }
+  $('startBtn').disabled=true;$('startBtn').textContent='⏳ 啟動中…';
+  try{await startCamera();await initAudio();arStarted=true;$('startOverlay').classList.add('hidden');currentState='normal';candidateState='normal';candidateCount=0;await playCat(nextNormal(),'normal');renderLoop();interactionLoop();setInterval(detectLoop,60);log('AR ready')}catch(e){$('startBtn').disabled=false;$('startBtn').textContent='📷 開始玩';$('liveText').textContent='啟動失敗';alert('啟動失敗：請確認 HTTPS、相機權限與瀏覽器版本。')}};
+$('soundBtn').onclick=toggleSound;$('recordBtn').onclick=toggleRecording;$('snapshotBtn').onclick=snapshot;$('downloadBtn').onclick=saveVideo;$('switchBtn').onclick=switchCamera;
+window.addEventListener('resize',resizeCanvas);window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,350));
 
-  $('startBtn').disabled=true;
-  $('startBtn').textContent='⏳ 啟動相機…';
-
-  try{
-    await startCamera();
-    try{
-      await initAudio();
-      audioEnabled=true;
-      $('soundBtn').textContent='🔊';
-      $('soundBtn').title='關閉聲音';
-    }catch(e){
-      $('soundBtn').textContent='🔇';
-      $('soundBtn').title='音效無法啟用';
-      log('音效啟用失敗：'+e.message);
-    }
-    arStarted=true;
-    $('startOverlay').classList.add('hidden');
-    $('liveText').textContent = 'LIVE';
-
-    currentState='normal';
-    normalIndex=0;
-    requestVideoChange(nextNormalVideo());
-
-    updateGuide('normal');
-    requestAnimationFrame(arLoop);
-    log('🐱 AR 互動模式啟動完成');
-  }catch(e){
-    $('liveText').textContent = '啟動失敗';
-    log(`❌ 相機：${e.name||e.message}`);
-    $('startBtn').disabled=false;
-    $('startBtn').textContent='📷 開始玩';
-  }
-};
-
-/* =========================
-   Buttons
-========================= */
-$('recordBtn').onclick=toggleRecording;
-$('snapshotBtn').onclick=snapshot;
-$('downloadBtn').onclick=saveVideo;
-$('switchBtn').onclick=switchCamera;
-$('soundBtn').onclick=toggleSound;
-
-/* =========================
-   Resize / Init
-========================= */
-window.addEventListener('resize',resizeCanvas);
-window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,350));
-
-updateGuide('normal');
-log('一般：spider → champion → magic → sleep');
-log('張嘴：chef → eat → drink');
-log('張手：cry → work');
-log('美顏：固定 MAX 100%');
-log('音效：chef=煮飯、eat=吃東西、drink=喝水，其餘=貓叫');
+/* 不使用任何貓耳繪製。音效檔案需與 index.html 同一層。 */
 </script>
-</body>
-</html>
+</body></html>
