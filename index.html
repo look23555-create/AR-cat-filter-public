@@ -2,194 +2,321 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🐾 奶牛貓 AR 互動美顏濾鏡</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多重互動 AR 貓咪動畫濾鏡與錄影</title>
   
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
-    body { margin: 0; overflow: hidden; font-family: 'Microsoft JhengHei', sans-serif; background-color: #000; }
-    #custom-banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255, 105, 180, 0.85); color: white; padding: 8px 20px; border-radius: 20px; font-size: 15px; font-weight: bold; z-index: 999; pointer-events: none; white-space: nowrap; }
-    #interaction-tip { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.6); color: #ffe6ea; padding: 6px 16px; border-radius: 15px; font-size: 13px; z-index: 999; pointer-events: none; white-space: nowrap; }
-    
-    /* 強制授權全螢幕遮罩 */
-    #permission-overlay {
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.92); display: flex; flex-direction: column;
-      justify-content: center; align-items: center; z-index: 99999; color: white; text-align: center; padding: 30px; box-sizing: border-box;
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
     }
-    #permission-overlay h2 { color: #ff7eb3; margin-bottom: 15px; }
-    #permission-overlay p { color: #ccc; font-size: 14px; margin-bottom: 25px; line-height: 1.6; }
-    
+
+    #webcam, #output-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+
+    #webcam {
+      z-index: 1;
+      transform: scaleX(-1); /* 鏡像翻轉，符合自拍習慣 */
+    }
+
+    #output-canvas {
+      z-index: 2;
+      pointer-events: none;
+      transform: scaleX(-1);
+    }
+
+    #custom-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 105, 180, 0.85);
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 999;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      z-index: 1000;
+    }
+
     .btn {
-      background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%); color: white; border: none;
-      padding: 14px 28px; border-radius: 30px; font-size: 18px; font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.4); cursor: pointer;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      background: #ff9800;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: background 0.2s;
     }
-    
-    video, canvas {
-      position: absolute !important; top: 50% !important; left: 50% !important;
-      transform: translate(-50%, -50%) scaleX(-1) !important; width: 100vw !important; height: 100vh !important;
-      object-fit: cover !important;
+
+    .btn:active {
+      transform: scale(0.95);
     }
   </style>
 </head>
 <body>
 
-  <div id="permission-overlay">
-    <h2>🐾 奶牛貓 AR 互動濾鏡</h2>
-    <p>為了讓 AR 鏡頭與貓咪動畫正常運作，<br>請點擊下方按鈕授權相機並進入世界！</p>
-    <button class="btn" id="grant-btn">點擊授權並啟動 AR</button>
+  <div id="custom-banner">✨ 點擊畫面任意處即可解鎖並切換特效！</div>
+
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="output-canvas"></canvas>
+
+  <div id="controls">
+    <button id="record-btn" class="btn">🔴 開始錄影</button>
+    <button id="snapshot-btn" class="btn" style="background: #4CAF50;">📸 拍照存檔</button>
   </div>
 
-  <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
-  <div id="interaction-tip">✨ 試著「張開嘴巴」或「張開手掌」切換貓咪特效！</div>
-
-  <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false">
-    <a-assets>
-      <video id="v-normal-0" src="spider_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-normal-1" src="champion_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-normal-2" src="magic_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      
-      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-
-      <video id="v-hand-0" src="cry_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-      <video id="v-hand-1" src="work_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
-    </a-assets>
-
-    <a-camera position="0 0 0" active="false"></a-camera>
-
-    <a-entity mindar-face-target="anchorIndex: 10">
-      <a-video id="cat-video-plane" src="#v-normal-0" position="0 0.5 0" width="1" height="1"></a-video>
-    </a-entity>
-  </a-scene>
+  <video id="cat-video" src="chef_cat_animation.mp4" autoplay loop muted playsinline style="display: none;"></video>
 
   <script>
-    const animationVideos = {
-      normal: ['#v-normal-0', '#v-normal-1', '#v-normal-2', '#v-normal-3'],
-      mouthOpen: ['#v-mouth-0', '#v-mouth-1', '#v-mouth-2'],
-      handPalm: ['#v-hand-0', '#v-hand-1']
-    };
+    const videoElement = document.getElementById('webcam');
+    const canvasElement = document.getElementById('output-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const recordBtn = document.getElementById('record-btn');
+    const snapshotBtn = document.getElementById('snapshot-btn');
+    const catVideo = document.getElementById('cat-video');
 
-    let currentCategory = 'normal';
-    let currentIndex = 0;
-    const videoPlane = document.querySelector('#cat-video-plane');
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
 
-    function switchAnimation(category, index = 0) {
-      currentCategory = category;
-      currentIndex = index % animationVideos[category].length;
-      const targetSelector = animationVideos[category][currentIndex];
-      
-      document.querySelectorAll('a-assets video').forEach(v => v.pause());
-      
-      videoPlane.setAttribute('src', targetSelector);
-      const activeEl = document.querySelector(targetSelector);
-      if (activeEl) {
-        activeEl.currentTime = 0;
-        activeEl.play().catch(e => console.log("播放攔截:", e));
+    let currentFace = null;
+    let hasHandOpen = false;
+    let normalVideoIndex = 0;
+    const normalVideos = [
+      'chef_cat_animation.mp4',
+      'drink_cat_animation.mp4',
+      'magic_cat_animation.mp4',
+      'sleep_cat_animation.mp4'
+    ];
+
+    // 💡 修正 1：加入使用者互動解鎖播放（解決瀏覽器擋 Autoplay 政策）
+    window.addEventListener('click', () => {
+      if (catVideo.paused) {
+        catVideo.play().catch(err => console.log("解鎖播放失敗:", err));
+      }
+    });
+
+    // 1. 初始化 MediaPipe Face Mesh
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    faceMesh.onResults((results) => {
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        currentFace = results.multiFaceLandmarks[0];
+      } else {
+        currentFace = null;
+      }
+    });
+
+    // 2. 初始化 MediaPipe Hands
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        const isOpen = landmarks[8].y < landmarks[5].y && landmarks[12].y < landmarks[9].y;
+        hasHandOpen = isOpen;
+      } else {
+        hasHandOpen = false;
+      }
+    });
+
+    // 3. 畫面主渲染迴圈
+    function renderFrame() {
+      canvasElement.width = videoElement.videoWidth || 640;
+      canvasElement.height = videoElement.videoHeight || 480;
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (currentFace) {
+        let minX = 1, maxX = 0, minY = 1, maxY = 0;
+        for (const pt of currentFace) {
+          if (pt.x < minX) minX = pt.x;
+          if (pt.x > maxX) maxX = pt.x;
+          if (pt.y < minY) minY = pt.y;
+          if (pt.y > maxY) maxY = pt.y;
+        }
+
+        const x = minX * canvasElement.width;
+        const y = minY * canvasElement.height;
+        const w = (maxX - minX) * canvasElement.width;
+        const h = (maxY - minY) * canvasElement.height;
+
+        // 偵測是否張嘴
+        const upperLip = currentFace[13];
+        const lowerLip = currentFace[14];
+        const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
+        const isMouthOpen = mouthOpenDistance > 0.05;
+
+        // 決定動畫狀態
+        let targetState = 'normal';
+        if (isMouthOpen) {
+          targetState = 'mouthOpen';
+        } else if (hasHandOpen) {
+          targetState = 'handOpen';
+        }
+
+        updateVideoSource(targetState);
+
+        // 計算頭頂位置繪製影片
+        const catWidth = w * 1.3;
+        const catHeight = w * 1.3;
+        const catX = x + w / 2 - catWidth / 2;
+        const catY = y - catHeight * 0.8;
+
+        if (catVideo.readyState >= catVideo.HAVE_CURRENT_DATA) {
+          canvasCtx.drawImage(catVideo, catX, catY, catWidth, catHeight);
+        }
+      }
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    // 動態切換對應影片清單的函式
+    let lastState = '';
+    function updateVideoSource(newState) {
+      if (newState !== lastState) {
+        lastState = newState;
+        if (newState === 'mouthOpen') {
+          const options = ['chef_cat_animation.mp4', 'eat_cat_animation.mp4'];
+          catVideo.src = options[Math.floor(Math.random() * options.length)];
+        } else if (newState === 'handOpen') {
+          const options = ['cry_cat_animation.mp4', 'work_cat_animation.mp4'];
+          catVideo.src = options[Math.floor(Math.random() * options.length)];
+        } else {
+          catVideo.src = normalVideos[normalVideoIndex];
+          normalVideoIndex = (normalVideoIndex + 1) % normalVideos.length;
+        }
+        catVideo.play().catch(e => console.log("影片切換播放攔截:", e));
       }
     }
 
-    // 點擊畫面切換
-    window.addEventListener('click', (e) => {
-      if (e.target.closest('#permission-overlay')) return;
-      let categories = ['normal', 'mouthOpen', 'handPalm'];
-      let catIndex = categories.indexOf(currentCategory);
-      currentIndex++;
-      if (currentIndex >= animationVideos[currentCategory].length) {
-        currentIndex = 0;
-        catIndex = (catIndex + 1) % categories.length;
-      }
-      switchAnimation(categories[catIndex], currentIndex);
+    // 啟動相機與串流送入 AI 模型
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        try {
+          await faceMesh.send({ image: videoElement });
+          await hands.send({ image: videoElement });
+        } catch (err) {}
+      },
+      width: 640,
+      height: 480
+    });
+    
+    camera.start().then(() => {
+      // 💡 確保相機啟動後強制讓影片嘗試播放第一支預設影片
+      catVideo.play().catch(e => console.log("初始播放需要互動解鎖"));
+      requestAnimationFrame(renderFrame);
     });
 
-    // 核心授權與啟動按鈕
-    document.getElementById('grant-btn').addEventListener('click', async () => {
-      const overlay = document.getElementById('permission-overlay');
-      
-      try {
-        // 1. 強制主動跟瀏覽器索取相機權限（解決授權被擋問題）
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    // ==========================================
+    // 隱藏合成畫布（錄影與拍照）
+    // ==========================================
+    const combinedCanvas = document.createElement('canvas');
+    const combinedCtx = combinedCanvas.getContext('2d');
+
+    function updateCombinedCanvas() {
+      combinedCanvas.width = videoElement.videoWidth || 640;
+      combinedCanvas.height = videoElement.videoHeight || 480;
+
+      combinedCtx.save();
+      combinedCtx.scale(-1, 1);
+      combinedCtx.drawImage(videoElement, -combinedCanvas.width, 0, combinedCanvas.width, combinedCanvas.height);
+      combinedCtx.restore();
+
+      combinedCtx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
+    }
+
+    recordBtn.addEventListener('click', () => {
+      if (!isRecording) {
+        recordedChunks = [];
+        const stream = combinedCanvas.captureStream(30);
         
-        // 2. 授權成功後關閉遮罩
-        overlay.style.display = 'none';
-
-        // 3. 強制預載並解鎖所有影片元素
-        const allVideos = document.querySelectorAll('a-assets video');
-        for (let v of allVideos) {
-          v.load();
-          try {
-            await v.play();
-            v.pause();
-            v.currentTime = 0;
-          } catch(err) {
-            console.log("影音解碼略過");
-          }
+        try {
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+        } catch (e) {
+          mediaRecorder = new MediaRecorder(stream);
         }
 
-        // 4. 啟動預設動畫
-        switchAnimation('normal', 0);
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) recordedChunks.push(event.data);
+        };
 
-        // 5. 啟動 MediaPipe 辨識
-        initAI();
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'ar_cat_recording.webm';
+          a.click();
+          URL.revokeObjectURL(url);
+        };
 
-      } catch (err) {
-        alert("相機授權失敗！請確認瀏覽器是否允許相機權限，或嘗試使用 Chrome / Safari 開啟網頁。");
-        console.error(err);
+        window.recordInterval = setInterval(updateCombinedCanvas, 1000 / 30);
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.innerText = '⏹️ 停止錄影';
+        recordBtn.style.backgroundColor = '#f44336';
+      } else {
+        mediaRecorder.stop();
+        clearInterval(window.recordInterval);
+        isRecording = false;
+        recordBtn.innerText = '🔴 開始錄影';
+        recordBtn.style.backgroundColor = '#ff9800';
       }
     });
 
-    function initAI() {
-      const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-      faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-      faceMesh.onResults(results => {
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-          const l = results.multiFaceLandmarks[0];
-          if (Math.abs(l[13].y - l[14].y) > 0.05 && currentCategory !== 'mouthOpen') {
-            switchAnimation('mouthOpen', Math.floor(Math.random() * animationVideos.mouthOpen.length));
-          }
-        }
-      });
-
-      const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-      hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-      hands.onResults(results => {
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-          const lm = results.multiHandLandmarks[0];
-          let ext = 0;
-          const wrist = lm[0];
-          [4, 8, 12, 16, 20].forEach((tip, i) => {
-            if (Math.hypot(lm[tip].x - wrist.x, lm[tip].y - wrist.y) > Math.hypot(lm[[2,6,10,14,18][i]].x - wrist.x, lm[[2,6,10,14,18][i]].y - wrist.y) * 1.2) ext++;
-          });
-          if (ext >= 4 && currentCategory !== 'handPalm') {
-            switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
-          }
-        }
-      });
-
-      setTimeout(() => {
-        const videoElement = document.querySelector('video');
-        if (videoElement) {
-          const camera = new Camera(videoElement, {
-            onFrame: async () => {
-              try {
-                await faceMesh.send({ image: videoElement });
-                await hands.send({ image: videoElement });
-              } catch(e) {}
-            },
-            width: 640, height: 480
-          });
-          camera.start();
-        }
-      }, 500);
-    }
+    snapshotBtn.addEventListener('click', () => {
+      updateCombinedCanvas();
+      const dataURL = combinedCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'ar_cat_photo.png';
+      a.click();
+    });
   </script>
 </body>
 </html>
