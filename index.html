@@ -40,7 +40,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
   padding:8px 11px;border-radius:999px;background:rgba(0,0,0,.48);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:12px;font-weight:800
 }
-#livePill{color:#ddd}\n#topActions{display:flex;align-items:center;gap:8px;pointer-events:auto}\n#soundBtn{font-size:16px}
+#livePill{color:#ddd}
+#topActions{display:flex;align-items:center;gap:8px;pointer-events:auto}
+#soundBtn{font-size:16px}
 #liveDot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
 #startOverlay{
   position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;
@@ -115,23 +117,21 @@ button:disabled{opacity:.45;cursor:not-allowed}
   </div>
 
   <!-- Hidden playback element: used internally to composite the cat animation onto the AR canvas. -->
-  <video id="testVideo" muted playsinline webkit-playsinline preload="auto" aria-hidden="true"></video>
+  <video id="testVideo" muted playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
+  <video id="testVideoB" muted playsinline webkit-playsinline preload="metadata" aria-hidden="true"></video>
   <video id="recordPreview" controls playsinline webkit-playsinline aria-hidden="true"></video>
 </div>
 
 <script>
-/*
-音效檔案（全部放在 GitHub 與 index.html 同一層）：
-- cat_sweet_voice4.mp3       → 預設貓叫
-- fry_potatoes.mp3           → chef
-- slurp_ramen.mp3            → eat
-- open_bottled_coffee.mp3    → drink
-- background_music.mp3       → 背景音樂（可選；目前未提供時不播放背景音樂）
-
-沒有專屬音效的影片一律播放 cat_sweet_voice4.mp3。
-*/
-
 'use strict';
+
+/* 音效對應：
+   chef  -> fry_potatoes.mp3
+   eat   -> slurp_ramen.mp3
+   drink -> open_bottled_coffee.mp3
+   其他影片 -> cat_sweet_voice4.mp3
+   background_music.mp3 為可選背景音樂；未上傳時不影響互動。
+*/
 
 /* =========================
    影片對應
@@ -165,6 +165,7 @@ const video = $('webcam');
 const canvas = $('output');
 const ctx = canvas.getContext('2d', {alpha:false});
 const testVideo = $('testVideo');
+const testVideoB = $('testVideoB');
 const recordCanvas = document.createElement('canvas');
 const recordCtx = recordCanvas.getContext('2d', {alpha:false});
 const beautyLayer = document.createElement('canvas');
@@ -177,6 +178,11 @@ let faceLandmarks = null;
 let handLandmarks = null;
 let currentState = 'none';
 let currentVideo = '';
+let activeCatVideo = testVideo;
+let loadingCatVideo = testVideoB;
+let catVideoToken = 0;
+let detectionBusy = false;
+let lastHandProcess = 0;
 let normalIndex = 0;
 let mouthIndex = 0;
 let handIndex = 0;
@@ -194,20 +200,19 @@ let recordedUrl = null;
 let beautyStrength = 100; // 固定最大
 let audioCtx = null;
 let audioDestination = null;
-let bgMusic = null;
-let meowAudio = null;
 let audioEnabled = false;
-let audioMusicSource = null;
-let audioMeowSource = null;
-let musicGain = null;
-let meowGain = null;
-let musicTimer = null;
-let audioReady = false;
-let musicStep = 0;
+let audioBus = null;
+let musicAudio = null;
+let catMeowAudio = null;
+let cookingAudio = null;
+let eatingAudio = null;
+let drinkingAudio = null;
+let audioSources = [];
+let audioFilesReady = false;
 let fxParticles = [];
 const STATE_CONFIRM_FRAMES = 4;
 const ACTION_COOLDOWN_MS = 450;
-const PROCESS_INTERVAL_MS = 70;
+const PROCESS_INTERVAL_MS = 90;
 
 /* =========================
    UI / 診斷
@@ -472,67 +477,197 @@ function nextHandVideo(){
   handIndex++;
   return name;
 }
-async function playCat(name){
-  if(!name) return;
-  while(changingVideo) await new Promise(r=>setTimeout(r,20));
-  changingVideo = true;
-  const token = ++videoChangeToken;
+function soundForVideo(name){
+  const n = String(name || '').toLowerCase();
+  if(n.includes('chef_cat_animation')) return cookingAudio;
+  if(n.includes('eat_cat_animation')) return eatingAudio;
+  if(n.includes('drink_cat_animation')) return drinkingAudio;
+  return catMeowAudio;
+}
 
+function safePlayAudio(audio){
+  if(!audioEnabled || !audio) return;
   try{
-    testVideo.pause();
-    testVideo.src = `./${encodeURIComponent(name)}`;
-    testVideo.load();
-    currentVideo = name;
-    setStatus('catStatus',`⏳ ${cleanName(name)}`,'wait');
-    log(`🐱 播放：${name}`);
+    audio.currentTime = 0;
+    const p = audio.play();
+    if(p?.catch) p.catch(()=>{});
+  }catch(e){}
+}
 
-    await new Promise((resolve,reject)=>{
-      let done=false;
-      const cleanup=()=>{
-        testVideo.removeEventListener('loadeddata',onLoad);
-        testVideo.removeEventListener('error',onError);
-      };
-      const onLoad=()=>{if(done)return;done=true;cleanup();resolve()};
-      const onError=()=>{if(done)return;done=true;cleanup();reject(new Error('影片載入失敗'))};
-      testVideo.addEventListener('loadeddata',onLoad,{once:true});
-      testVideo.addEventListener('error',onError,{once:true});
-      setTimeout(()=>{if(!done){done=true;cleanup();resolve()}},5000);
-    });
+function playInteractionSound(name){
+  if(!audioEnabled) return;
+  const audio = soundForVideo(name);
+  safePlayAudio(audio);
+}
 
-    if(token !== videoChangeToken) return;
-    testVideo.currentTime = 0;
-    await testVideo.play().catch(()=>{});
-    setStatus('catStatus',`✅ ${cleanName(name)}`,'ok');
+function stopAllSfx(){
+  [catMeowAudio,cookingAudio,eatingAudio,drinkingAudio].forEach(a=>{
+    if(!a) return;
+    try{ a.pause(); a.currentTime=0; }catch(e){}
+  });
+}
+
+function createAudioElement(file, loop=false){
+  const a = new Audio(`./${file}`);
+  a.preload = 'auto';
+  a.loop = loop;
+  a.playsInline = true;
+  a.crossOrigin = 'anonymous';
+  a.addEventListener('error',()=>log(`⚠️ 音效找不到：${file}`),{once:true});
+  a.load();
+  return a;
+}
+
+async function initAudio(){
+  if(audioCtx){
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    return;
+  }
+
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) throw new Error('此瀏覽器不支援 Web Audio');
+
+  audioCtx = new Ctx();
+  audioDestination = audioCtx.createMediaStreamDestination();
+  audioBus = audioCtx.createGain();
+  audioBus.gain.value = 0.9;
+
+  catMeowAudio = createAudioElement('cat_sweet_voice4.mp3');
+  cookingAudio = createAudioElement('fry_potatoes.mp3');
+  eatingAudio = createAudioElement('slurp_ramen.mp3');
+  drinkingAudio = createAudioElement('open_bottled_coffee.mp3');
+
+  // 背景音樂為可選資源：GitHub 有 background_music.mp3 才會啟用。
+  musicAudio = createAudioElement('background_music.mp3', true);
+
+  const connect = (audio, gainValue, loop=false) => {
+    const source = audioCtx.createMediaElementSource(audio);
+    const gain = audioCtx.createGain();
+    gain.gain.value = gainValue;
+    source.connect(gain);
+    gain.connect(audioBus);
+    audioSources.push({audio,source,gain,loop});
+  };
+
+  connect(musicAudio, 0.16, true);
+  connect(catMeowAudio, 0.78);
+  connect(cookingAudio, 0.72);
+  connect(eatingAudio, 0.72);
+  connect(drinkingAudio, 0.72);
+
+  // 一條總音訊總線，同時送到手機喇叭與錄影音軌。
+  audioBus.connect(audioCtx.destination);
+  audioBus.connect(audioDestination);
+
+  await audioCtx.resume();
+  audioEnabled = true;
+  audioFilesReady = true;
+
+  // 背景音樂不存在時，play() 會自然失敗，不影響其他音效。
+  musicAudio.play().catch(()=>{});
+}
+
+async function toggleSound(){
+  try{
+    if(!audioCtx) await initAudio();
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    audioEnabled = !audioEnabled;
+    $('soundBtn').textContent = audioEnabled ? '🔊' : '🔇';
+    $('soundBtn').title = audioEnabled ? '關閉聲音' : '開啟聲音';
+    $('soundBtn').setAttribute('aria-label', $('soundBtn').title);
+    if(audioEnabled){
+      musicAudio?.play().catch(()=>{});
+    }else{
+      musicAudio?.pause();
+      stopAllSfx();
+    }
   }catch(e){
-    setStatus('catStatus',`❌ ${cleanName(name)}`,'bad');
-    log(`❌ 影片錯誤：${name} / ${e.message}`);
-  }finally{
-    changingVideo = false;
+    log(`⚠️ 音效無法啟用：${e.message}`);
   }
 }
 
-/* =========================
-   AR 狀態 → 動作影片
-========================= */
-async function changeARVideo(state){
+function waitForVideoReady(v, timeout=1800){
+  return new Promise(resolve=>{
+    if(v.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA){ resolve(true); return; }
+    let done=false;
+    const finish=ok=>{
+      if(done) return;
+      done=true;
+      v.removeEventListener('canplay',onReady);
+      v.removeEventListener('loadeddata',onReady);
+      v.removeEventListener('error',onError);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onReady=()=>finish(true);
+    const onError=()=>finish(false);
+    const timer=setTimeout(()=>finish(false),timeout);
+    v.addEventListener('canplay',onReady,{once:true});
+    v.addEventListener('loadeddata',onReady,{once:true});
+    v.addEventListener('error',onError,{once:true});
+  });
+}
+
+function bindCatVideoEnded(v){
+  v.addEventListener('ended',()=>{
+    if(v !== activeCatVideo) return;
+    if(currentState === 'normal'){
+      if(detectRawState() === 'normal') requestVideoChange(nextNormalVideo());
+    }else if(detectRawState() === 'normal'){
+      currentState='normal';
+      updateGuide('normal');
+      requestVideoChange(nextNormalVideo());
+    }
+  });
+}
+bindCatVideoEnded(testVideo);
+bindCatVideoEnded(testVideoB);
+
+async function playCat(name){
+  if(!name || name === currentVideo) return;
+  const token = ++catVideoToken;
+  const v = loadingCatVideo;
+
+  try{
+    v.pause();
+    v.src = `./${encodeURIComponent(name)}`;
+    v.load();
+    const ready = await waitForVideoReady(v, 1800);
+    if(token !== catVideoToken) return;
+    if(!ready){
+      log(`⚠️ 影片載入較慢：${name}`);
+      return;
+    }
+
+    v.currentTime = 0;
+    stopAllSfx();
+    const old = activeCatVideo;
+    activeCatVideo = v;
+    loadingCatVideo = old;
+    currentVideo = name;
+    old.pause();
+    v.play().catch(()=>{});
+    playInteractionSound(name);
+    setStatus('catStatus',`✅ ${cleanName(name)}`,'ok');
+    log(`🐱 播放：${name}`);
+  }catch(e){
+    log(`⚠️ 影片切換失敗：${name} / ${e.message}`);
+  }
+}
+
+function requestVideoChange(name){
+  // 不讓 AR 主迴圈 await 影片載入，避免辨識與畫面卡住。
+  playCat(name);
+}
+
+function changeARVideo(state){
   if(state === currentState && currentVideo) return;
   currentState = state;
   updateGuide(state);
 
-  let name;
-  if(state === 'mouthOpen'){
-    name = nextMouthVideo();
-    triggerCatSound(currentVideoName || currentVideo || '');
-  }else if(state === 'handOpen'){
-    name = nextHandVideo();
-    triggerCatSound(currentVideoName || currentVideo || '');
-  }
-  else {
-    // 回到 normal 時只在目前影片結束或不存在時切換
-    if(currentVideo && !testVideo.ended && testVideo.currentTime > 0) return;
-    name = nextNormalVideo();
-  }
-  await playCat(name);
+  if(state === 'mouthOpen') requestVideoChange(nextMouthVideo());
+  else if(state === 'handOpen') requestVideoChange(nextHandVideo());
+  else if(!currentVideo || activeCatVideo.ended) requestVideoChange(nextNormalVideo());
 }
 
 /* =========================
@@ -571,13 +706,13 @@ function drawBeauty(){
    寬度依臉寬縮放，避免人靠近鏡頭時突然巨大。
 ========================= */
 function drawCat(){
-  if(!faceLandmarks || testVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  if(!faceLandmarks || activeCatVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
   const g = getFaceGeometry();
   if(!g) return;
 
   const catWidth = Math.max(120,Math.min(canvas.width*0.62,g.faceWidth*0.92));
-  const vw = testVideo.videoWidth || 1;
-  const vh = testVideo.videoHeight || 1;
+  const vw = activeCatVideo.videoWidth || 1;
+  const vh = activeCatVideo.videoHeight || 1;
   const aspect = vh/vw;
   const catHeight = catWidth * Math.max(0.85,Math.min(1.35,aspect));
 
@@ -589,7 +724,7 @@ function drawCat(){
 
   ctx.save();
   ctx.globalAlpha = 1;
-  ctx.drawImage(testVideo,x,y,catWidth,catHeight);
+  ctx.drawImage(activeCatVideo,x,y,catWidth,catHeight);
   ctx.restore();
 }
 
@@ -642,288 +777,104 @@ function supportedMime(){
   ];
   return types.find(t=>MediaRecorder.isTypeSupported?.(t)) || '';
 }
-function makeTone(freq, duration, gainValue=0.03, type='sine', when=0){
-  if(!audioCtx || !audioDestination || !audioEnabled) return;
-  const now=audioCtx.currentTime + when;
-  const osc=audioCtx.createOscillator();
-  const gain=audioCtx.createGain();
-  osc.type=type;
-  osc.frequency.setValueAtTime(freq,now);
-  gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(gainValue,now+0.025);
-  gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
-  osc.connect(gain); gain.connect(audioDestination);
-  osc.start(now); osc.stop(now+duration+0.03);
-}
-function startBuiltInMusic(){
-  if(!audioCtx || !audioEnabled || musicTimer) return;
-  const notes=[261.63,329.63,392.00,329.63,293.66,349.23,440.00,349.23];
-  musicStep=0;
-  musicTimer=setInterval(()=>{
-    if(!audioEnabled) return;
-    const f=notes[musicStep++ % notes.length];
-    makeTone(f,0.24,0.018,'sine');
-    if(musicStep%4===1) makeTone(f/2,0.38,0.012,'triangle',0.02);
-  },320);
-}
-function stopBuiltInMusic(){
-  if(musicTimer){clearInterval(musicTimer);musicTimer=null;}
-}
-async function ensureRecordingAudio(){
-  if(!audioCtx){
-    const Ctx=window.AudioContext||window.webkitAudioContext;
-    if(!Ctx) throw new Error('此瀏覽器不支援 Web Audio');
-    audioCtx=new Ctx();
-    audioDestination=audioCtx.createMediaStreamDestination();
-    audioReady=true;
-  }
-  if(audioCtx.state==='suspended') await audioCtx.resume();
-  audioEnabled=true;
-  if(musicGain) musicGain.gain.value=0;
-  if(meowGain) meowGain.gain.value=0;
-  startBuiltInMusic();
-  return true;
-}
-async function toggleSound(){
-  try{
-    if(!audioCtx) await ensureRecordingAudio();
-    if(audioCtx.state==='suspended') await audioCtx.resume();
-    audioEnabled=!audioEnabled;
-    if(audioEnabled){
-      startBuiltInMusic();
-      $('soundBtn').textContent='🔊';
-      $('soundBtn').title='關閉聲音';
-      $('soundBtn').setAttribute('aria-label','關閉聲音');
-    }else{
-      stopBuiltInMusic();
-      $('soundBtn').textContent='🔇';
-      $('soundBtn').title='開啟聲音';
-      $('soundBtn').setAttribute('aria-label','開啟聲音');
-    }
-  }catch(e){
-    log('音效啟用失敗：'+e.message);
-  }
-}
-
-
-async function initAudio(){
-  if(audioCtx) {
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-    return;
-  }
-
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if(!Ctx) throw new Error('Web Audio 不支援');
-
-  audioCtx = new Ctx();
-  audioDestination = audioCtx.createMediaStreamDestination();
-
-  const makeAudio = (file, loop=false) => {
-    const a = new Audio('./' + file);
-    a.preload = 'auto';
-    a.loop = loop;
-    a.playsInline = true;
-    a.crossOrigin = 'anonymous';
-    return a;
-  };
-
-  bgMusic = makeAudio('background_music.mp3', true);
-  catMeow = makeAudio('cat_sweet_voice4.mp3');
-  soundCooking = makeAudio('fry_potatoes.mp3');
-  soundEating = makeAudio('slurp_ramen.mp3');
-  soundDrinking = makeAudio('open_bottled_coffee.mp3');
-
-  musicGain = audioCtx.createGain();
-  sfxGain = audioCtx.createGain();
-
-  musicGain.gain.value = 0.16;
-  sfxGain.gain.value = 0.78;
-
-  const connect = (audio, gain) => {
-    const source = audioCtx.createMediaElementSource(audio);
-    source.connect(gain);
-  };
-
-  connect(bgMusic, musicGain);
-  connect(catMeow, sfxGain);
-  connect(soundCooking, sfxGain);
-  connect(soundEating, sfxGain);
-  connect(soundDrinking, sfxGain);
-
-  // 同時送到手機喇叭與錄影用音軌
-  musicGain.connect(audioCtx.destination);
-  musicGain.connect(audioDestination);
-  sfxGain.connect(audioCtx.destination);
-  sfxGain.connect(audioDestination);
-
-  if(audioCtx.state === 'suspended') await audioCtx.resume();
-
-  audioEnabled = true;
-}
-
-function playSoundForVideo(videoName){
-  if(!audioEnabled) return;
-
-  let audio = catMeow;
-  if(videoName.includes('chef_cat_animation')) audio = soundCooking;
-  else if(videoName.includes('eat_cat_animation')) audio = soundEating;
-  else if(videoName.includes('drink_cat_animation')) audio = soundDrinking;
-
-  if(!audio) return;
-
-  audio.currentTime = 0;
-  audio.play().catch(()=>{});
-}
-
-function stopInteractionSounds(){
-  [catMeow, soundCooking, soundEating, soundDrinking].forEach(a=>{
-    if(a){
-      a.pause();
-      try { a.currentTime = 0; } catch(e){}
-    }
-  });
-}
-
-async function toggleSound(){
-  try{
-    await initAudio();
-    audioEnabled = !audioEnabled;
-    if(musicGain) musicGain.gain.value = audioEnabled ? 0.16 : 0;
-    if(sfxGain) sfxGain.gain.value = audioEnabled ? 0.78 : 0;
-
-    const btn = document.getElementById('soundBtn');
-    if(btn){
-      btn.textContent = audioEnabled ? '🔊' : '🔇';
-      btn.title = audioEnabled ? '關閉聲音' : '開啟聲音';
-    }
-
-    if(audioEnabled) bgMusic?.play().catch(()=>{});
-    else {
-      bgMusic?.pause();
-      stopInteractionSounds();
-    }
-  }catch(err){
-    console.warn('Audio init failed:', err);
-  }
-}
-
-function triggerCatSound(videoName){
-  playSoundForVideo(videoName || '');
-}
-
-
 function addCatParticles(){
   const g=getFaceGeometry();
   if(!g) return;
-  for(let i=0;i<5;i++) fxParticles.push({
-    x:g.centerX+(Math.random()-.5)*g.faceWidth*1.15,
-    y:g.headTop-g.faceHeight*.05+(Math.random()-.5)*g.faceHeight*.25,
-    vx:(Math.random()-.5)*0.7, vy:-0.5-Math.random()*0.5,
-    life:1, size:4+Math.random()*4, rot:Math.random()*Math.PI*2
+  for(let i=0;i<4;i++) fxParticles.push({
+    x:g.centerX+(Math.random()-.5)*g.faceWidth,
+    y:g.headTop-g.faceHeight*.08+(Math.random()-.5)*g.faceHeight*.18,
+    vx:(Math.random()-.5)*0.5,
+    vy:-0.35-Math.random()*0.35,
+    life:1,
+    size:4+Math.random()*3
   });
 }
+
 function drawCatFX(){
-  const g=getFaceGeometry();
-  if(!g) return;
-  // subtle cat ears, kept above the face so facial landmarks remain visible
-  const s=Math.max(34,Math.min(64,g.faceWidth*.16));
-  const gap=g.faceWidth*.34;
+  // 不使用貓耳，僅在互動觸發時留下很輕的肉球粒子，避免遮住臉。
+  if(!fxParticles.length) return;
   ctx.save();
-  ctx.globalAlpha=.78;
-  ctx.lineWidth=Math.max(2,s*.055);
-  ctx.strokeStyle='rgba(255,105,170,.85)';
-  ctx.fillStyle='rgba(255,105,170,.16)';
-  for(const side of [-1,1]){
-    const cx=g.centerX+side*gap;
-    const baseY=g.headTop+g.faceHeight*.02;
-    ctx.beginPath();
-    ctx.moveTo(cx-s*.55,baseY);
-    ctx.lineTo(cx,baseY-s*.95);
-    ctx.lineTo(cx+s*.55,baseY);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx-s*.22,baseY-s*.10);
-    ctx.lineTo(cx,baseY-s*.58);
-    ctx.lineTo(cx+s*.22,baseY-s*.10);
-    ctx.stroke();
+  for(const p of fxParticles){
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.035;
+    if(p.life <= 0) continue;
+    ctx.globalAlpha = p.life * 0.7;
+    ctx.font = `${p.size*2}px sans-serif`;
+    ctx.fillText('🐾', p.x, p.y);
   }
   ctx.restore();
-  if(fxParticles.length){
-    ctx.save();
-    for(const p of fxParticles){
-      p.x+=p.vx; p.y+=p.vy; p.life-=.035; p.rot+=.05;
-      if(p.life<=0) continue;
-      ctx.globalAlpha=p.life*.85;
-      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
-      ctx.font=`${p.size*2}px sans-serif`;
-      ctx.fillText('🐾',-p.size,-p.size);
-      ctx.setTransform(1,0,0,1,0,0);
-    }
-    ctx.restore();
-    fxParticles=fxParticles.filter(p=>p.life>0);
-  }
+  fxParticles = fxParticles.filter(p=>p.life>0);
 }
 
-async function toggleRecording(){
-  if(!arStarted){log('請先啟動 AR');return;}
-  if(recording){recorder.stop();return;}
-  if(!recordCanvas.captureStream || !window.MediaRecorder){log('❌ 此瀏覽器不支援錄影');return;}
 
-  const mime = supportedMime();
+async function toggleRecording(){
+  if(!arStarted){ log('請先啟動 AR'); return; }
+  if(recording){ recorder?.stop(); return; }
+  if(!recordCanvas.captureStream || !window.MediaRecorder){ log('❌ 此瀏覽器不支援錄影'); return; }
+
   try{
-    await ensureRecordingAudio();
+    await initAudio();
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+
     const videoStream = recordCanvas.captureStream(30);
-    const mixedStream = new MediaStream([
-      ...videoStream.getVideoTracks(),
-      ...audioDestination.stream.getAudioTracks()
-    ]);
+    const mixedStream = new MediaStream(videoStream.getVideoTracks());
+    audioDestination.stream.getAudioTracks().forEach(t=>mixedStream.addTrack(t));
+
+    const mime = supportedMime();
     recorder = mime ? new MediaRecorder(mixedStream,{mimeType:mime}) : new MediaRecorder(mixedStream);
-  }catch(e){log(`❌ 錄影初始化：${e.message}`);return}
+  }catch(e){
+    log(`❌ 錄影初始化失敗：${e.message}`);
+    return;
+  }
 
   chunks=[];
-  recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+  recorder.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  recorder.onerror=e=>log(`❌ 錄影錯誤：${e.error?.message||'unknown'}`);
   recorder.onstop=()=>{
-    const type=recorder.mimeType||mime||'video/webm';
+    const type=recorder.mimeType || 'video/webm';
     recordedBlob=new Blob(chunks,{type});
-    stopBuiltInMusic();
     if(recordedUrl) URL.revokeObjectURL(recordedUrl);
     recordedUrl=URL.createObjectURL(recordedBlob);
     $('recordPreview').src=recordedUrl;
     recording=false;
     $('recordBtn').classList.remove('recording');
-    $('recordBtn').textContent='●'; $('recordBtn').title='開始錄影';
+    $('recordBtn').textContent='●';
+    $('recordBtn').title='開始錄影';
     $('downloadBtn').classList.remove('hidden');
     $('guideTitle').textContent='🎬 錄影完成';
     $('guideText').textContent='點擊 💾 儲存影片到手機';
     $('interactionGuide').classList.add('active');
-    log('✅ 錄影完成');
+    log('✅ 錄影完成，音效已混入');
   };
+
   recorder.start(1000);
   recording=true;
-  if(audioEnabled) startBuiltInMusic();
+  if(audioEnabled) musicAudio?.play().catch(()=>{});
   $('recordBtn').classList.add('recording');
-  $('recordBtn').textContent='■'; $('recordBtn').title='停止錄影';
+  $('recordBtn').textContent='■';
+  $('recordBtn').title='停止錄影';
   $('downloadBtn').classList.add('hidden');
-  log(`🔴 開始錄影：${mime||'瀏覽器格式'}`);
+  log(`🔴 開始錄影：${recorder.mimeType||'瀏覽器格式'}`);
   recordFrame();
 }
 function saveVideo(){
-  if(!recordedBlob){log('目前沒有可儲存的影片');return}
+  if(!recordedBlob || !recordedUrl){ log('目前沒有可儲存的影片'); return; }
   const ext=recordedBlob.type.includes('mp4')?'mp4':'webm';
-  const url=recordedUrl || URL.createObjectURL(recordedBlob);
+  const filename=`AR_cat_${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
   const a=document.createElement('a');
-  a.href=url;
-  a.download=`AR_cat_${Date.now()}.${ext}`;
+  a.href=recordedUrl;
+  a.download=filename;
   a.rel='noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // iOS Safari 可能忽略 download 屬性；保留 Blob URL 可由使用者長按儲存。
+
+  // iOS Safari 常忽略 download；開啟影片後可用分享/長按儲存。
   if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){
-    setTimeout(()=>window.open(url,'_blank','noopener'),120);
+    setTimeout(()=>window.open(recordedUrl,'_blank','noopener,noreferrer'),180);
   }
-  if(!recordedUrl) setTimeout(()=>URL.revokeObjectURL(url),3000);
-  log('💾 影片下載已觸發');
+  log('💾 已準備影片儲存');
 }
 function snapshot(){
   if(!arStarted){log('請先啟動 AR');return}
@@ -940,59 +891,44 @@ function snapshot(){
 }
 
 /* =========================
-   影片結束
-========================= */
-testVideo.addEventListener('ended',async()=>{
-  if(currentState==='normal'){
-    if(detectRawState()==='normal') await playCat(nextNormalVideo());
-    return;
-  }
-
-  // 互動影片只播放一次；保持動作不重播，等使用者回到 normal
-  if(detectRawState()==='normal'){
-    currentState='normal';
-    updateGuide('normal');
-    await playCat(nextNormalVideo());
-  }else{
-    log('互動影片完成，等待下一個動作');
-  }
-});
-
-/* =========================
    AR Loop
 ========================= */
-async function arLoop(ts){
-  if(!arStarted)return;
+function runDetection(ts){
+  if(detectionBusy || !video.videoWidth) return;
+  if(ts-lastProcess < PROCESS_INTERVAL_MS) return;
+  lastProcess=ts;
+  detectionBusy=true;
+
+  // 臉部每次偵測；手掌稍低頻，降低手機負載。
+  faceMesh.send({image:video})
+    .then(()=>{
+      const now=performance.now();
+      if(now-lastHandProcess >= 150){
+        lastHandProcess=now;
+        return hands.send({image:video});
+      }
+    })
+    .catch(e=>log(`⚠️ AI 偵測：${e.message}`))
+    .finally(()=>{ detectionBusy=false; });
+}
+
+function arLoop(ts){
+  if(!arStarted) return;
 
   drawAR();
-
-  const mouth=mouthOpen();
-  const hand=handOpen();
+  runDetection(ts);
 
   if(faceLandmarks){
     const raw=detectRawState();
     const state=getStableState(raw);
-
-    if(state!==currentState && !changingVideo && performance.now()-lastActionAt>ACTION_COOLDOWN_MS){
+    if(state!==currentState && performance.now()-lastActionAt>ACTION_COOLDOWN_MS){
       lastActionAt=performance.now();
-      await changeARVideo(state);
+      changeARVideo(state);
+      if(state!=='normal') addCatParticles();
     }
-  }else{
-    // 沒臉時不要讓上一支互動影片永遠卡住
-    if(currentState!=='normal' && !changingVideo){
-      currentState='normal';
-      updateGuide('normal');
-    }
-  }
-
-  if(ts-lastProcess>=PROCESS_INTERVAL_MS){
-    lastProcess=ts;
-    try{
-      await faceMesh.send({image:video});
-      await hands.send({image:video});
-    }catch(e){
-      log(`❌ AI 偵測：${e.message}`);
-    }
+  }else if(currentState!=='normal'){
+    currentState='normal';
+    updateGuide('normal');
   }
 
   requestAnimationFrame(arLoop);
@@ -1014,12 +950,13 @@ $('startBtn').onclick=async()=>{
   try{
     await startCamera();
     try{
-      await ensureRecordingAudio();
+      await initAudio();
       audioEnabled=true;
       $('soundBtn').textContent='🔊';
       $('soundBtn').title='關閉聲音';
     }catch(e){
       $('soundBtn').textContent='🔇';
+      $('soundBtn').title='音效無法啟用';
       log('音效啟用失敗：'+e.message);
     }
     arStarted=true;
@@ -1028,7 +965,7 @@ $('startBtn').onclick=async()=>{
 
     currentState='normal';
     normalIndex=0;
-    await playCat(nextNormalVideo());
+    requestVideoChange(nextNormalVideo());
 
     updateGuide('normal');
     requestAnimationFrame(arLoop);
@@ -1061,6 +998,7 @@ log('一般：spider → champion → magic → sleep');
 log('張嘴：chef → eat → drink');
 log('張手：cry → work');
 log('美顏：固定 MAX 100%');
+log('音效：chef=煮飯、eat=吃東西、drink=喝水，其餘=貓叫');
 </script>
 </body>
 </html>
