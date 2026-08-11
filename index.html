@@ -1,468 +1,310 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 
-<meta
-    name="viewport"
-    content="width=device-width,
-             initial-scale=1,
-             maximum-scale=1,
-             user-scalable=no,
-             viewport-fit=cover"
->
+<title>AR 貓咪 V3｜頭頂互動濾鏡</title>
 
-<title>AR 貓咪互動濾鏡</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
 <style>
-
-* {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
 }
 
-html,
-body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #000;
-    font-family: Arial, "Noto Sans TC", sans-serif;
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#000;
+  font-family:Arial,"Noto Sans TC",sans-serif;
 }
 
-#app {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #000;
+#app{
+  position:fixed;
+  inset:0;
+  background:#000;
 }
 
-/* =========================
-   CAMERA
-========================= */
-
-#camera {
-    position: absolute;
-    inset: 0;
-
-    width: 100%;
-    height: 100%;
-
-    object-fit: cover;
-
-    transform: scaleX(-1);
-
-    background: #000;
+#stage{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  background:#000;
 }
 
-/* =========================
-   AR CANVAS
-========================= */
-
-#arCanvas {
-    position: absolute;
-    inset: 0;
-
-    width: 100%;
-    height: 100%;
-
-    pointer-events: none;
+#webcam,
+#output{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
 }
 
-/*
-    hidden catVideo
-
-    影片本身不直接顯示，
-    由 canvas 把影片影像繪製到 AR 畫面。
-*/
-
-#catVideo {
-    position: absolute;
-
-    width: 1px;
-    height: 1px;
-
-    left: -9999px;
-    top: -9999px;
-
-    opacity: 0;
-
-    pointer-events: none;
+#webcam{
+  z-index:1;
+  transform:scaleX(-1);
+  background:#000;
 }
 
-/* =========================
-   START SCREEN
-========================= */
-
-#startScreen {
-    position: absolute;
-    inset: 0;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    background: rgba(0,0,0,0.72);
-
-    z-index: 20;
+#output{
+  z-index:2;
+  pointer-events:none;
 }
 
-.startBox {
-    width: min(88vw, 420px);
-
-    padding: 28px 22px;
-
-    text-align: center;
-
-    border-radius: 24px;
-
-    background: rgba(20,20,20,0.92);
-
-    color: #fff;
+#catVideo{
+  display:none;
 }
 
-.startBox h1 {
-    margin: 0 0 12px;
-
-    font-size: 26px;
+#startOverlay{
+  position:absolute;
+  inset:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.82);
+  text-align:center;
+  padding:24px;
+  color:#fff;
 }
 
-.startBox p {
-    margin: 8px 0 20px;
-
-    line-height: 1.6;
-
-    color: #ddd;
+#startOverlay.hidden{
+  display:none;
 }
 
-#startButton {
-    width: 100%;
-
-    border: 0;
-
-    padding: 15px;
-
-    border-radius: 14px;
-
-    background: #fff;
-
-    color: #111;
-
-    font-size: 18px;
-    font-weight: bold;
-
-    cursor: pointer;
+#startBox{
+  width:min(90vw,420px);
 }
 
-#startButton:active {
-    transform: scale(0.98);
+#startBox h1{
+  font-size:26px;
+  margin:0 0 12px;
 }
 
-/* =========================
-   STATUS
-========================= */
-
-#status {
-    position: absolute;
-
-    top: max(16px, env(safe-area-inset-top));
-
-    left: 50%;
-
-    transform: translateX(-50%);
-
-    z-index: 10;
-
-    padding: 8px 14px;
-
-    border-radius: 999px;
-
-    background: rgba(0,0,0,0.5);
-
-    color: #fff;
-
-    font-size: 13px;
-
-    pointer-events: none;
-
-    white-space: nowrap;
+#startBox p{
+  color:#ddd;
+  line-height:1.7;
+  font-size:14px;
 }
 
-/* =========================
-   DEBUG PANEL
-========================= */
-
-#debugPanel {
-    position: absolute;
-
-    left: 10px;
-
-    bottom: max(10px, env(safe-area-inset-bottom));
-
-    z-index: 15;
-
-    min-width: 210px;
-
-    padding: 10px 12px;
-
-    border-radius: 12px;
-
-    background: rgba(0,0,0,0.68);
-
-    color: #fff;
-
-    font-family: monospace;
-
-    font-size: 12px;
-
-    line-height: 1.5;
-
-    display: none;
-
-    pointer-events: none;
+#startBtn{
+  border:0;
+  border-radius:14px;
+  padding:15px 25px;
+  background:#ff4f9a;
+  color:#fff;
+  font-size:17px;
+  font-weight:bold;
 }
 
-/*
-   ?debug=1 時開啟
-*/
-
-body.debug #debugPanel {
-    display: block;
+#info{
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  z-index:10;
+  padding:10px 13px;
+  border-radius:14px;
+  background:rgba(0,0,0,.55);
+  backdrop-filter:blur(8px);
+  color:#fff;
+  font-size:13px;
 }
 
+#stateText{
+  font-weight:bold;
+}
+
+#videoText{
+  margin-top:3px;
+  color:#ddd;
+  font-size:11px;
+}
+
+#debug{
+  position:absolute;
+  top:10px;
+  left:10px;
+  z-index:11;
+  padding:7px 9px;
+  border-radius:8px;
+  background:rgba(0,0,0,.55);
+  color:#7CFF8A;
+  font:11px monospace;
+  pointer-events:none;
+}
+
+#controls{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:12;
+  display:flex;
+  gap:7px;
+}
+
+.controlBtn{
+  border:0;
+  border-radius:10px;
+  padding:8px 10px;
+  background:rgba(0,0,0,.6);
+  color:#fff;
+  font-size:12px;
+}
+
+@media(max-width:600px){
+
+  #debug{
+    font-size:10px;
+  }
+
+  #info{
+    bottom:10px;
+    font-size:12px;
+  }
+
+}
 </style>
+
 </head>
 
 <body>
 
 <div id="app">
 
-    <!-- =========================
-         CAMERA
-    ========================== -->
+  <div id="stage">
 
-    <video
-        id="camera"
-        autoplay
-        muted
-        playsinline
-        webkit-playsinline
-    ></video>
+```
+<!-- 真正的攝影機 -->
+<video
+  id="webcam"
+  autoplay
+  muted
+  playsinline
+  webkit-playsinline>
+</video>
 
+<!-- AR 合成畫布 -->
+<canvas id="output"></canvas>
 
-    <!-- =========================
-         AR DRAWING
-    ========================== -->
+<!--
+  真正獨立的貓咪影片。
+  不直接顯示，只拿來 drawImage 到 Canvas。
+-->
+<video
+  id="catVideo"
+  muted
+  playsinline
+  webkit-playsinline
+  loop
+  preload="auto">
+</video>
 
-    <canvas id="arCanvas"></canvas>
+<!-- 啟動畫面 -->
+<div id="startOverlay">
 
+  <div id="startBox">
 
-    <!-- =========================
-         REAL HIDDEN CAT VIDEO
-    ========================== -->
+    <h1>🐱 AR 貓咪濾鏡 V3</h1>
 
-    <video
-        id="catVideo"
-        muted
-        playsinline
-        webkit-playsinline
-        preload="auto"
-    ></video>
+    <p>
+      貓咪會固定在頭頂上方，不遮住臉。<br>
+      張嘴會切換張嘴動畫。<br>
+      張開手掌會切換手掌動畫。
+    </p>
 
+    <button id="startBtn">
+      📷 開始 AR
+    </button>
 
-    <!-- =========================
-         STATUS
-    ========================== -->
-
-    <div id="status">
-        等待啟動相機
-    </div>
-
-
-    <!-- =========================
-         DEBUG
-    ========================== -->
-
-    <div id="debugPanel">
-
-        FACE<br>
-        X: <span id="faceX">0</span><br>
-        Y: <span id="faceY">0</span><br>
-        W: <span id="faceW">0</span><br>
-        H: <span id="faceH">0</span><br>
-
-        CAT<br>
-        X: <span id="catX">0</span><br>
-        Y: <span id="catY">0</span><br>
-        W: <span id="catW">0</span><br>
-        H: <span id="catH">0</span><br>
-
-        MOUTH:
-        <span id="mouthState">CLOSED</span><br>
-
-        HAND:
-        <span id="handState">CLOSED</span><br>
-
-        VIDEO:
-        <span id="videoState">NONE</span>
-
-    </div>
-
-
-    <!-- =========================
-         START
-    ========================== -->
-
-    <div id="startScreen">
-
-        <div class="startBox">
-
-            <h1>🐱 AR 貓咪互動濾鏡</h1>
-
-            <p>
-                允許使用相機後，<br>
-                將臉部放入畫面即可開始。
-            </p>
-
-            <button id="startButton">
-                開始 AR
-            </button>
-
-        </div>
-
-    </div>
+  </div>
 
 </div>
 
+<!-- Debug -->
+<div id="debug">
+  Face: 等待<br>
+  Hand: 等待
+</div>
 
-<!--
-===========================================================
-MediaPipe
-===========================================================
--->
+<!-- 控制 -->
+<div id="controls">
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <button class="controlBtn" id="cameraBtn">
+    🔄 鏡頭
+  </button>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <button class="controlBtn" id="debugBtn">
+    🐱 Debug
+  </button>
 
+</div>
+
+<!-- 狀態 -->
+<div id="info">
+
+  <div>
+    狀態：
+    <span id="stateText">等待啟動</span>
+  </div>
+
+  <div id="videoText">
+    影片：無
+  </div>
+
+</div>
+```
+
+  </div>
+
+</div>
 
 <script>
+'use strict';
 
 /* =========================================================
-   AR CAT CONFIG
+   9 部貓咪影片
 ========================================================= */
 
-const CAT_CONFIG = {
+const VIDEO_GROUPS = {
 
-    /*
-        貓咪寬度 = 臉部寬度 × widthScale
-    */
+  normal: [
 
-    widthScale: 1.35,
+    'spider_cat_animation.mp4',
 
-    /*
-        X 位移
+    'champion_cat_animation.mp4',
 
-        正數 = 右
-        負數 = 左
-    */
+    'magic_cat_animation.mp4',
 
-    offsetX: 0,
+    'sleep_cat_animation.mp4'
 
-    /*
-        Y 位移
+  ],
 
-        正數 = 下
-        負數 = 上
+  mouthOpen: [
 
-        -0.72 代表往臉部上方移動
-    */
+    'chef_cat_animation.mp4',
 
-    offsetY: -0.72,
+    'eat_cat_animation.mp4',
 
-    /*
-        貓咪高度比例
+    'drink_cat_animation.mp4'
 
-        保持影片原始比例時使用 null
-    */
+  ],
 
-    heightScale: null,
+  handOpen: [
 
-    /*
-        貓咪透明度
-    */
+    'cry_cat_animation.mp4',
 
-    opacity: 1.0,
+    'work_cat_animation.mp4'
 
-    /*
-        貓咪是否水平鏡像
-
-        前鏡頭通常建議 false，
-        因為畫面本身已經鏡像。
-    */
-
-    mirror: false
-
-};
-
-
-/* =========================================================
-   VIDEO CONFIG
-========================================================= */
-
-/*
-    所有影片依照使用者提供的檔案名稱設定。
-
-    一般狀態：
-    spider
-    champion
-    magic
-    sleep
-
-    張開嘴巴：
-    chef
-    eat
-    drink
-
-    張開手掌：
-    cry
-    work
-*/
-
-const CAT_VIDEOS = {
-
-    normal: [
-
-        "spider_cat_animation.mp4",
-
-        "champion_cat_animation.mp4",
-
-        "magic_cat_animation.mp4",
-
-        "sleep_cat_animation.mp4"
-
-    ],
-
-    mouthOpen: [
-
-        "chef_cat_animation.mp4",
-
-        "eat_cat_animation.mp4",
-
-        "drink_cat_animation.mp4"
-
-    ],
-
-    palmOpen: [
-
-        "cry_cat_animation.mp4",
-
-        "work_cat_animation.mp4"
-
-    ]
+  ]
 
 };
 
@@ -471,1556 +313,1235 @@ const CAT_VIDEOS = {
    DOM
 ========================================================= */
 
-const camera =
-    document.getElementById("camera");
+const webcam =
+  document.getElementById('webcam');
 
 const canvas =
-    document.getElementById("arCanvas");
+  document.getElementById('output');
 
 const ctx =
-    canvas.getContext("2d");
+  canvas.getContext('2d');
 
 const catVideo =
-    document.getElementById("catVideo");
+  document.getElementById('catVideo');
 
-const startScreen =
-    document.getElementById("startScreen");
+const startBtn =
+  document.getElementById('startBtn');
 
-const startButton =
-    document.getElementById("startButton");
+const startOverlay =
+  document.getElementById('startOverlay');
 
-const statusText =
-    document.getElementById("status");
+const stateText =
+  document.getElementById('stateText');
 
+const videoText =
+  document.getElementById('videoText');
 
-/* =========================================================
-   DEBUG
-========================================================= */
+const debug =
+  document.getElementById('debug');
 
-const DEBUG =
-    new URLSearchParams(location.search).get("debug") === "1";
+const cameraBtn =
+  document.getElementById('cameraBtn');
 
-if (DEBUG) {
-    document.body.classList.add("debug");
-}
-
-
-/* =========================================================
-   DEBUG ELEMENTS
-========================================================= */
-
-const faceX =
-    document.getElementById("faceX");
-
-const faceY =
-    document.getElementById("faceY");
-
-const faceW =
-    document.getElementById("faceW");
-
-const faceH =
-    document.getElementById("faceH");
-
-const catX =
-    document.getElementById("catX");
-
-const catY =
-    document.getElementById("catY");
-
-const catW =
-    document.getElementById("catW");
-
-const catH =
-    document.getElementById("catH");
-
-const mouthState =
-    document.getElementById("mouthState");
-
-const handState =
-    document.getElementById("handState");
-
-const videoState =
-    document.getElementById("videoState");
+const debugBtn =
+  document.getElementById('debugBtn');
 
 
 /* =========================================================
-   STATE
+   狀態
 ========================================================= */
 
-let faceData = null;
+let stream = null;
 
-let handData = null;
+let facingMode = 'user';
 
-let mouthOpen = false;
+let started = false;
 
-let palmOpen = false;
+let faceLandmarks = null;
 
-let currentMode = "normal";
+let handLandmarks = null;
 
-let currentVideoIndex = -1;
+let currentState = 'normal';
 
-let currentVideoName = "";
+let currentVideo = '';
 
-let running = false;
+let normalIndex = 0;
 
-let animationFrame = null;
+let lastFrameTime = 0;
+
+let debugVisible = false;
 
 
 /* =========================================================
-   CAMERA
+   Canvas
 ========================================================= */
 
-async function startCamera() {
+function resizeCanvas(){
 
-    try {
+  const width =
+    webcam.videoWidth || 1280;
 
-        statusText.textContent =
-            "正在開啟相機…";
+  const height =
+    webcam.videoHeight || 720;
 
-        const stream =
-            await navigator.mediaDevices.getUserMedia({
+  if(
+    canvas.width !== width ||
+    canvas.height !== height
+  ){
 
-                video: {
+    canvas.width = width;
 
-                    facingMode: {
-                        ideal: "user"
-                    },
+    canvas.height = height;
 
-                    width: {
-                        ideal: 1280
-                    },
-
-                    height: {
-                        ideal: 720
-                    }
-
-                },
-
-                audio: false
-
-            });
-
-        camera.srcObject = stream;
-
-        await camera.play();
-
-        resizeCanvas();
-
-        startScreen.style.display = "none";
-
-        statusText.textContent =
-            "AR 已啟動";
-
-        running = true;
-
-        startDetection();
-
-        renderLoop();
-
-    }
-    catch (error) {
-
-        console.error(
-            "Camera error:",
-            error
-        );
-
-        statusText.textContent =
-            "無法開啟相機";
-
-        alert(
-            "無法使用相機。\n\n" +
-            "請確認：\n" +
-            "1. 已允許瀏覽器使用相機\n" +
-            "2. GitHub Pages 使用 HTTPS\n" +
-            "3. Safari / Chrome 已允許相機權限"
-        );
-
-    }
+  }
 
 }
 
 
 /* =========================================================
-   RESIZE
+   MediaPipe Face Mesh
 ========================================================= */
 
-function resizeCanvas() {
+const faceMesh = new FaceMesh({
 
-    const dpr =
-        Math.min(
-            window.devicePixelRatio || 1,
-            2
-        );
+  locateFile:file =>
 
-    canvas.width =
-        window.innerWidth * dpr;
+    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 
-    canvas.height =
-        window.innerHeight * dpr;
-
-    canvas.style.width =
-        window.innerWidth + "px";
-
-    canvas.style.height =
-        window.innerHeight + "px";
-
-    ctx.setTransform(
-        dpr,
-        0,
-        0,
-        dpr,
-        0,
-        0
-    );
-
-}
-
-window.addEventListener(
-    "resize",
-    resizeCanvas
-);
-
-
-/* =========================================================
-   MEDIAPIPE FACE MESH
-========================================================= */
-
-const faceMesh =
-    new FaceMesh({
-
-        locateFile: (file) => {
-
-            return (
-                "https://cdn.jsdelivr.net/npm/" +
-                "@mediapipe/face_mesh/" +
-                file
-            );
-
-        }
-
-    });
+});
 
 
 faceMesh.setOptions({
 
-    maxNumFaces: 1,
+  maxNumFaces:1,
 
-    refineLandmarks: true,
+  refineLandmarks:true,
 
-    minDetectionConfidence: 0.5,
+  minDetectionConfidence:0.5,
 
-    minTrackingConfidence: 0.5
+  minTrackingConfidence:0.5
 
 });
 
 
-faceMesh.onResults(
-    onFaceResults
-);
+faceMesh.onResults(results => {
+
+  faceLandmarks =
+    results.multiFaceLandmarks?.[0] || null;
+
+});
 
 
 /* =========================================================
-   MEDIAPIPE HANDS
+   MediaPipe Hands
 ========================================================= */
 
-const hands =
-    new Hands({
+const hands = new Hands({
 
-        locateFile: (file) => {
+  locateFile:file =>
 
-            return (
-                "https://cdn.jsdelivr.net/npm/" +
-                "@mediapipe/hands/" +
-                file
-            );
+    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
 
-        }
-
-    });
+});
 
 
 hands.setOptions({
 
-    maxNumHands: 2,
+  maxNumHands:1,
 
-    modelComplexity: 1,
+  modelComplexity:1,
 
-    minDetectionConfidence: 0.5,
+  minDetectionConfidence:0.5,
 
-    minTrackingConfidence: 0.5
+  minTrackingConfidence:0.5
 
 });
 
 
-hands.onResults(
-    onHandResults
-);
+hands.onResults(results => {
+
+  handLandmarks =
+    results.multiHandLandmarks?.[0] || null;
+
+});
 
 
 /* =========================================================
-   DETECTION LOOP
+   開啟相機
 ========================================================= */
 
-let detectionBusy = false;
+async function startCamera(){
 
-async function startDetection() {
+  if(!navigator.mediaDevices?.getUserMedia){
 
-    if (!running) {
-        return;
-    }
-
-    if (detectionBusy) {
-
-        requestAnimationFrame(
-            startDetection
-        );
-
-        return;
-
-    }
-
-    detectionBusy = true;
-
-    try {
-
-        await faceMesh.send({
-            image: camera
-        });
-
-        await hands.send({
-            image: camera
-        });
-
-    }
-    catch (error) {
-
-        console.error(
-            "Detection error:",
-            error
-        );
-
-    }
-
-    detectionBusy = false;
-
-    requestAnimationFrame(
-        startDetection
+    throw new Error(
+      '瀏覽器不支援相機 API'
     );
 
-}
+  }
 
 
-/* =========================================================
-   FACE RESULTS
-========================================================= */
+  if(stream){
 
-function onFaceResults(results) {
+    stream
+      .getTracks()
+      .forEach(track => track.stop());
 
-    if (
-        !results.multiFaceLandmarks ||
-        !results.multiFaceLandmarks.length
-    ) {
+  }
 
-        faceData = null;
 
-        mouthOpen = false;
+  stream =
+    await navigator.mediaDevices.getUserMedia({
 
-        return;
+      audio:false,
 
-    }
+      video:{
 
-    const landmarks =
-        results.multiFaceLandmarks[0];
+        facingMode:facingMode,
 
-    const points =
-        landmarks.map(
-            p => ({
-                x: p.x,
-                y: p.y
-            })
-        );
+        width:{
+          ideal:1280
+        },
 
+        height:{
+          ideal:720
+        },
 
-    let minX = 1;
-    let minY = 1;
-    let maxX = 0;
-    let maxY = 0;
-
-
-    for (const p of points) {
-
-        minX =
-            Math.min(
-                minX,
-                p.x
-            );
-
-        minY =
-            Math.min(
-                minY,
-                p.y
-            );
-
-        maxX =
-            Math.max(
-                maxX,
-                p.x
-            );
-
-        maxY =
-            Math.max(
-                maxY,
-                p.y
-            );
-
-    }
-
-
-    /*
-        MediaPipe 座標是 0~1。
-
-        因為 camera 是水平鏡像，
-        X 必須反轉。
-    */
-
-    const mirroredMinX =
-        1 - maxX;
-
-    const mirroredMaxX =
-        1 - minX;
-
-
-    faceData = {
-
-        x: mirroredMinX,
-
-        y: minY,
-
-        width:
-            mirroredMaxX -
-            mirroredMinX,
-
-        height:
-            maxY -
-            minY,
-
-        centerX:
-            (
-                mirroredMinX +
-                mirroredMaxX
-            ) / 2,
-
-        centerY:
-            (
-                minY +
-                maxY
-            ) / 2,
-
-        landmarks:
-            landmarks
-
-    };
-
-
-    mouthOpen =
-        detectMouthOpen(
-            landmarks
-        );
-
-}
-
-
-/* =========================================================
-   MOUTH DETECTION
-========================================================= */
-
-function detectMouthOpen(
-    landmarks
-) {
-
-    /*
-        上唇 / 下唇
-
-        MediaPipe FaceMesh：
-
-        13 = upper lip
-        14 = lower lip
-
-        61 / 291 = mouth sides
-    */
-
-    const upper =
-        landmarks[13];
-
-    const lower =
-        landmarks[14];
-
-    const left =
-        landmarks[61];
-
-    const right =
-        landmarks[291];
-
-
-    const vertical =
-        distance(
-            upper,
-            lower
-        );
-
-    const horizontal =
-        distance(
-            left,
-            right
-        );
-
-
-    if (horizontal <= 0) {
-        return false;
-    }
-
-
-    const ratio =
-        vertical /
-        horizontal;
-
-
-    /*
-        張嘴判定門檻。
-
-        可依你的模型再調整。
-    */
-
-    return ratio > 0.28;
-
-}
-
-
-/* =========================================================
-   HAND RESULTS
-========================================================= */
-
-function onHandResults(results) {
-
-    if (
-        !results.multiHandLandmarks ||
-        !results.multiHandLandmarks.length
-    ) {
-
-        handData = null;
-
-        palmOpen = false;
-
-        return;
-
-    }
-
-
-    /*
-        只要有一隻手掌張開，
-        就判定 palmOpen。
-    */
-
-    let detectedOpenPalm = false;
-
-
-    for (
-        const landmarks
-        of results.multiHandLandmarks
-    ) {
-
-        if (
-            detectOpenPalm(
-                landmarks
-            )
-        ) {
-
-            detectedOpenPalm = true;
-
-            break;
-
+        frameRate:{
+          ideal:30,
+          max:30
         }
 
-    }
+      }
+
+    });
 
 
-    palmOpen =
-        detectedOpenPalm;
+  webcam.srcObject =
+    stream;
 
 
-    handData = {
+  await webcam.play();
 
-        count:
-            results.multiHandLandmarks.length
 
-    };
+  resizeCanvas();
 
 }
 
 
 /* =========================================================
-   OPEN PALM DETECTION
+   切換鏡頭
 ========================================================= */
 
-function detectOpenPalm(
-    landmarks
-) {
+async function switchCamera(){
 
-    /*
-        MediaPipe Hand landmarks
-
-        wrist = 0
-
-        thumb:
-        4
-
-        index:
-        8
-
-        middle:
-        12
-
-        ring:
-        16
-
-        pinky:
-        20
-    */
+  if(!started) return;
 
 
-    const wrist =
-        landmarks[0];
+  facingMode =
+    facingMode === 'user'
+      ? 'environment'
+      : 'user';
 
 
-    const fingers = [
+  try{
 
-        [8, 6],
+    await startCamera();
 
-        [12, 10],
+  }catch(error){
 
-        [16, 14],
+    console.error(
+      '鏡頭切換失敗',
+      error
+    );
 
-        [20, 18]
+  }
 
+}
+
+
+/* =========================================================
+   嘴巴判斷
+========================================================= */
+
+function isMouthOpen(){
+
+  if(!faceLandmarks){
+
+    return false;
+
+  }
+
+
+  /*
+    MediaPipe Face Mesh：
+
+    13 = 上嘴唇
+    14 = 下嘴唇
+  */
+
+  const upper =
+    faceLandmarks[13];
+
+  const lower =
+    faceLandmarks[14];
+
+
+  if(!upper || !lower){
+
+    return false;
+
+  }
+
+
+  const distance =
+    Math.abs(
+      lower.y - upper.y
+    );
+
+
+  /*
+    這裡故意降低門檻，
+    讓手機 AR 比較容易偵測張嘴。
+  */
+
+  return distance > 0.045;
+
+}
+
+
+/* =========================================================
+   手掌判斷
+========================================================= */
+
+function isHandOpen(){
+
+  if(!handLandmarks){
+
+    return false;
+
+  }
+
+
+  const fingers = [
+
+    handLandmarks[8].y <
+    handLandmarks[6].y,
+
+    handLandmarks[12].y <
+    handLandmarks[10].y,
+
+    handLandmarks[16].y <
+    handLandmarks[14].y,
+
+    handLandmarks[20].y <
+    handLandmarks[18].y
+
+  ];
+
+
+  const count =
+    fingers.filter(Boolean).length;
+
+
+  return count >= 3;
+
+}
+
+
+/* =========================================================
+   動作判斷
+========================================================= */
+
+function detectState(){
+
+  /*
+    優先順序：
+
+    1. 張嘴
+    2. 張開手掌
+    3. 一般
+  */
+
+  if(isMouthOpen()){
+
+    return 'mouthOpen';
+
+  }
+
+
+  if(isHandOpen()){
+
+    return 'handOpen';
+
+  }
+
+
+  return 'normal';
+
+}
+
+
+/* =========================================================
+   一般狀態輪播
+========================================================= */
+
+function getNormalVideo(){
+
+  const list =
+    VIDEO_GROUPS.normal;
+
+  const video =
+    list[
+      normalIndex %
+      list.length
     ];
 
+  normalIndex++;
 
-    let extended = 0;
-
-
-    for (
-        const [tip, pip]
-        of fingers
-    ) {
-
-        const tipPoint =
-            landmarks[tip];
-
-        const pipPoint =
-            landmarks[pip];
-
-
-        const tipDistance =
-            distance(
-                tipPoint,
-                wrist
-            );
-
-        const pipDistance =
-            distance(
-                pipPoint,
-                wrist
-            );
-
-
-        if (
-            tipDistance >
-            pipDistance * 1.12
-        ) {
-
-            extended++;
-
-        }
-
-    }
-
-
-    /*
-        四根手指至少三根伸展
-        視為張開手掌。
-    */
-
-    return extended >= 3;
+  return video;
 
 }
 
 
 /* =========================================================
-   DISTANCE
+   動作對應影片
 ========================================================= */
 
-function distance(a, b) {
+function getVideoForState(state){
 
-    const dx =
-        a.x - b.x;
-
-    const dy =
-        a.y - b.y;
-
-    return Math.sqrt(
-        dx * dx +
-        dy * dy
-    );
-
-}
-
-
-/* =========================================================
-   MODE
-========================================================= */
-
-function getCurrentMode() {
-
-    /*
-        手掌優先。
-
-        如果同時張嘴 + 張手，
-        使用 palmOpen。
-    */
-
-    if (palmOpen) {
-
-        return "palmOpen";
-
-    }
-
-
-    if (mouthOpen) {
-
-        return "mouthOpen";
-
-    }
-
-
-    return "normal";
-
-}
-
-
-/* =========================================================
-   VIDEO SWITCH
-========================================================= */
-
-function updateCatVideo() {
-
-    const mode =
-        getCurrentMode();
-
+  if(state === 'mouthOpen'){
 
     const list =
-        CAT_VIDEOS[mode];
+      VIDEO_GROUPS.mouthOpen;
+
+    return list[
+      Math.floor(
+        Math.random() *
+        list.length
+      )
+    ];
+
+  }
 
 
-    if (!list || !list.length) {
-        return;
-    }
+  if(state === 'handOpen'){
+
+    const list =
+      VIDEO_GROUPS.handOpen;
+
+    return list[
+      Math.floor(
+        Math.random() *
+        list.length
+      )
+    ];
+
+  }
 
 
-    /*
-        如果模式改變，
-        從該模式第一部開始。
-    */
-
-    if (
-        mode !== currentMode
-    ) {
-
-        currentMode =
-            mode;
-
-        currentVideoIndex =
-            -1;
-
-    }
-
-
-    /*
-        如果目前沒有影片，
-        選第一部。
-    */
-
-    if (
-        currentVideoIndex < 0
-    ) {
-
-        currentVideoIndex = 0;
-
-        loadCatVideo(
-            list[currentVideoIndex]
-        );
-
-        return;
-
-    }
-
-
-    /*
-        同一個影片播完後，
-        自動循環該模式的影片。
-    */
+  return getNormalVideo();
 
 }
 
 
 /* =========================================================
-   LOAD VIDEO
+   載入貓咪影片
 ========================================================= */
 
-function loadCatVideo(
-    fileName
-) {
+async function loadCatVideo(filename){
 
-    if (
-        currentVideoName ===
-        fileName
-    ) {
+  if(!filename){
 
-        if (
-            catVideo.paused
-        ) {
+    return;
 
-            catVideo.play()
-                .catch(() => {});
-
-        }
-
-        return;
-
-    }
+  }
 
 
-    currentVideoName =
-        fileName;
+  /*
+    如果同一支影片正在播放，
+    不重新載入。
+  */
 
+  if(
+    filename === currentVideo &&
+    catVideo.readyState >= 2
+  ){
+
+    return;
+
+  }
+
+
+  currentVideo =
+    filename;
+
+
+  videoText.textContent =
+    `影片：${filename}`;
+
+
+  catVideo.pause();
+
+
+  /*
+    GitHub Pages 使用相對路徑。
+  */
+
+  catVideo.src =
+    './' + filename;
+
+
+  catVideo.load();
+
+
+  try{
+
+    await catVideo.play();
+
+  }catch(error){
 
     /*
-        真正使用 hidden catVideo。
+      iOS / Safari 某些情況第一次播放
+      可能需要再次 play。
     */
 
-    catVideo.pause();
-
-    catVideo.removeAttribute(
-        "src"
+    console.warn(
+      '貓咪影片播放等待',
+      error
     );
 
-    catVideo.load();
-
-
-    catVideo.src =
-        fileName;
-
-
-    catVideo.loop =
-        false;
-
-
-    catVideo.muted =
-        true;
-
-
-    catVideo.playsInline =
-        true;
-
-
-    catVideo.load();
-
-
-    catVideo.onloadeddata =
-        () => {
-
-            catVideo.play()
-                .catch(
-                    error => {
-                        console.warn(
-                            "Video play blocked:",
-                            error
-                        );
-                    }
-                );
-
-        };
-
-
-    catVideo.onerror =
-        () => {
-
-            console.error(
-                "影片載入失敗：",
-                fileName
-            );
-
-            statusText.textContent =
-                "影片載入失敗：" +
-                fileName;
-
-        };
-
-
-    updateDebugVideo();
+  }
 
 }
 
 
 /* =========================================================
-   VIDEO ENDED
+   狀態切換
 ========================================================= */
 
-catVideo.addEventListener(
-    "ended",
-    () => {
+async function updateState(){
 
-        const list =
-            CAT_VIDEOS[
-                currentMode
-            ];
+  const newState =
+    detectState();
 
 
-        if (
-            !list ||
-            !list.length
-        ) {
-            return;
-        }
+  /*
+    狀態沒有改變，
+    不重新切換影片。
+  */
+
+  if(
+    newState === currentState &&
+    currentVideo
+  ){
+
+    return;
+
+  }
 
 
-        /*
-            下一部影片
-        */
-
-        currentVideoIndex =
-            (
-                currentVideoIndex + 1
-            ) %
-            list.length;
+  currentState =
+    newState;
 
 
-        loadCatVideo(
-            list[
-                currentVideoIndex
-            ]
-        );
-
-    }
-);
+  let text = '😺 一般';
 
 
-/* =========================================================
-   CAT POSITION
-========================================================= */
+  if(newState === 'mouthOpen'){
 
-function calculateCatRect() {
+    text =
+      '👄 張嘴';
 
-    if (!faceData) {
-        return null;
-    }
+  }
 
+  else if(newState === 'handOpen'){
 
-    const screenWidth =
-        window.innerWidth;
+    text =
+      '✋ 張開手掌';
 
-    const screenHeight =
-        window.innerHeight;
+  }
 
 
-    /*
-        臉部寬度
-    */
-
-    const faceWidthPx =
-        faceData.width *
-        screenWidth;
+  stateText.textContent =
+    text;
 
 
-    /*
-        貓咪寬度
-    */
-
-    const width =
-        faceWidthPx *
-        CAT_CONFIG.widthScale;
+  const filename =
+    getVideoForState(newState);
 
 
-    /*
-        影片比例
-
-        如果影片還沒有 metadata，
-        使用 16:9 作為暫時比例。
-    */
-
-    let videoRatio =
-        16 / 9;
-
-
-    if (
-        catVideo.videoWidth > 0 &&
-        catVideo.videoHeight > 0
-    ) {
-
-        videoRatio =
-            catVideo.videoWidth /
-            catVideo.videoHeight;
-
-    }
-
-
-    let height =
-        width /
-        videoRatio;
-
-
-    if (
-        CAT_CONFIG.heightScale
-    ) {
-
-        height *=
-            CAT_CONFIG.heightScale;
-
-    }
-
-
-    /*
-        Face center
-    */
-
-    const faceCenterX =
-        faceData.centerX *
-        screenWidth;
-
-    const faceCenterY =
-        faceData.centerY *
-        screenHeight;
-
-
-    /*
-        X 偏移
-
-        以臉寬作為比例
-    */
-
-    const x =
-        faceCenterX -
-        width / 2 +
-        CAT_CONFIG.offsetX *
-        faceWidthPx;
-
-
-    /*
-        Y 偏移
-
-        同樣使用臉寬作為比例
-    */
-
-    const y =
-        faceCenterY -
-        height / 2 +
-        CAT_CONFIG.offsetY *
-        faceWidthPx;
-
-
-    return {
-
-        x,
-        y,
-        width,
-        height,
-
-        centerX:
-            x +
-            width / 2,
-
-        centerY:
-            y +
-            height / 2
-
-    };
+  await loadCatVideo(filename);
 
 }
 
 
 /* =========================================================
-   RENDER LOOP
+   找出人臉範圍
 ========================================================= */
 
-function renderLoop() {
+function getFaceBox(){
 
-    if (!running) {
-        return;
-    }
+  if(!faceLandmarks){
 
+    return null;
 
-    ctx.clearRect(
-        0,
-        0,
-        window.innerWidth,
-        window.innerHeight
-    );
+  }
 
 
-    /*
-        每一幀確認應該使用哪個影片。
-    */
+  let minX = 1;
 
-    updateCatVideo();
+  let maxX = 0;
 
+  let minY = 1;
 
-    /*
-        沒有臉就不顯示貓咪。
-    */
-
-    if (faceData) {
-
-        const rect =
-            calculateCatRect();
+  let maxY = 0;
 
 
-        if (
-            rect &&
-            catVideo.readyState >= 2
-        ) {
+  for(
+    const point of faceLandmarks
+  ){
 
-            drawCat(
-                rect
-            );
-
-        }
-
-
-        if (DEBUG) {
-
-            drawDebug(
-                rect
-            );
-
-        }
-
-    }
+    minX =
+      Math.min(
+        minX,
+        point.x
+      );
 
 
-    updateDebug();
+    maxX =
+      Math.max(
+        maxX,
+        point.x
+      );
 
 
-    animationFrame =
-        requestAnimationFrame(
-            renderLoop
-        );
+    minY =
+      Math.min(
+        minY,
+        point.y
+      );
+
+
+    maxY =
+      Math.max(
+        maxY,
+        point.y
+      );
+
+  }
+
+
+  const width =
+    (maxX - minX) *
+    canvas.width;
+
+
+  const height =
+    (maxY - minY) *
+    canvas.height;
+
+
+  const centerX =
+    ((minX + maxX) / 2) *
+    canvas.width;
+
+
+  const topY =
+    minY *
+    canvas.height;
+
+
+  return {
+
+    width,
+
+    height,
+
+    centerX,
+
+    topY
+
+  };
 
 }
 
 
 /* =========================================================
-   DRAW CAT
+   ★ V3 貓咪位置
 ========================================================= */
 
-function drawCat(rect) {
+function drawCatOnHead(){
 
-    ctx.save();
+  if(
+    !faceLandmarks
+  ){
 
+    return;
 
-    ctx.globalAlpha =
-        CAT_CONFIG.opacity;
-
-
-    if (
-        CAT_CONFIG.mirror
-    ) {
-
-        ctx.translate(
-            rect.x +
-            rect.width,
-            rect.y
-        );
-
-        ctx.scale(
-            -1,
-            1
-        );
-
-        ctx.drawImage(
-            catVideo,
-            0,
-            0,
-            rect.width,
-            rect.height
-        );
-
-    }
-    else {
-
-        ctx.drawImage(
-            catVideo,
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height
-        );
-
-    }
+  }
 
 
-    ctx.restore();
+  if(
+    catVideo.readyState <
+    HTMLMediaElement.HAVE_CURRENT_DATA
+  ){
 
-}
+    return;
 
-
-/* =========================================================
-   DEBUG DRAW
-========================================================= */
-
-function drawDebug(rect) {
-
-    if (!faceData) {
-        return;
-    }
+  }
 
 
-    const w =
-        window.innerWidth;
-
-    const h =
-        window.innerHeight;
+  const face =
+    getFaceBox();
 
 
-    /*
-        FACE BOX
-        綠色
-    */
+  if(!face){
 
-    const fx =
-        faceData.x * w;
+    return;
 
-    const fy =
-        faceData.y * h;
-
-    const fw =
-        faceData.width * w;
-
-    const fh =
-        faceData.height * h;
+  }
 
 
-    ctx.save();
+  /*
+  ==========================================================
+  V3 核心：
+
+  貓咪尺寸縮小
+  ==========================================================
+  */
+
+  const catWidth =
+    face.width * 0.78;
 
 
-    ctx.strokeStyle =
-        "#00ff00";
+  const videoRatio =
+    catVideo.videoWidth &&
+    catVideo.videoHeight
 
-    ctx.lineWidth =
-        3;
+      ? catVideo.videoHeight /
+        catVideo.videoWidth
 
-    ctx.strokeRect(
-        fx,
-        fy,
-        fw,
-        fh
+      : 1;
+
+
+  const catHeight =
+    catWidth *
+    videoRatio;
+
+
+  /*
+  ==========================================================
+  貓咪水平位置
+
+  直接對準臉部中心
+  ==========================================================
+  */
+
+  const x =
+    face.centerX -
+    catWidth / 2;
+
+
+  /*
+  ==========================================================
+  ★ 最重要的位置公式
+
+  face.topY =
+  人臉最上方
+
+  貓咪底部 =
+  人頭頂附近
+
+  gap =
+  貓咪與頭部之間的小空隙
+
+  所以貓咪不會往臉上掉。
+  ==========================================================
+  */
+
+  const gap =
+    face.height * 0.06;
+
+
+  const y =
+    face.topY -
+    catHeight +
+    gap;
+
+
+  /*
+  ==========================================================
+  防止貓咪超出畫面
+  ==========================================================
+  */
+
+  const safeX =
+    Math.max(
+      -catWidth * 0.15,
+      Math.min(
+        canvas.width - catWidth * 0.85,
+        x
+      )
     );
 
 
+  const safeY =
+    Math.max(
+      0,
+      y
+    );
+
+
+  /*
+  ==========================================================
+  貓咪影片繪製
+
+  不會直接把影片放到 HTML 上，
+  而是畫進 AR Canvas。
+  ==========================================================
+  */
+
+  ctx.drawImage(
+
+    catVideo,
+
+    safeX,
+
+    safeY,
+
+    catWidth,
+
+    catHeight
+
+  );
+
+}
+
+
+/* =========================================================
+   AR Canvas
+========================================================= */
+
+function drawAR(){
+
+  resizeCanvas();
+
+
+  /*
+    清空 AR 圖層
+  */
+
+  ctx.clearRect(
+
+    0,
+
+    0,
+
+    canvas.width,
+
+    canvas.height
+
+  );
+
+
+  /*
+    注意：
+
+    Canvas 本身不再繪製攝影機。
+
+    攝影機由 #webcam 顯示。
+
+    Canvas 只負責貓咪。
+
+    因此貓咪會自然疊在鏡頭上。
+  */
+
+  drawCatOnHead();
+
+
+  /*
+    Debug 資訊
+  */
+
+  if(debugVisible){
+
+    drawDebug();
+
+  }
+
+}
+
+
+/* =========================================================
+   Debug
+========================================================= */
+
+function drawDebug(){
+
+  if(!faceLandmarks){
+
+    return;
+
+  }
+
+
+  const face =
+    getFaceBox();
+
+
+  if(!face){
+
+    return;
+
+  }
+
+
+  ctx.save();
+
+
+  /*
+    人臉框
+  */
+
+  ctx.strokeStyle =
+    '#00ff66';
+
+  ctx.lineWidth =
+    3;
+
+
+  ctx.strokeRect(
+
+    face.centerX -
+      face.width / 2,
+
+    face.topY,
+
+    face.width,
+
+    face.height
+
+  );
+
+
+  /*
+    頭頂中心十字
+  */
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    face.centerX - 15,
+    face.topY
+  );
+
+  ctx.lineTo(
+    face.centerX + 15,
+    face.topY
+  );
+
+  ctx.moveTo(
+    face.centerX,
+    face.topY - 15
+  );
+
+  ctx.lineTo(
+    face.centerX,
+    face.topY + 15
+  );
+
+  ctx.stroke();
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   Debug UI
+========================================================= */
+
+function updateDebug(){
+
+  const face =
+    faceLandmarks
+      ? '偵測到'
+      : '等待';
+
+
+  const hand =
+    handLandmarks
+      ? '偵測到'
+      : '等待';
+
+
+  debug.innerHTML =
+
+    `Face: ${face}<br>` +
+
+    `Hand: ${hand}<br>` +
+
+    `State: ${currentState}`;
+
+}
+
+
+/* =========================================================
+   AR Loop
+========================================================= */
+
+async function arLoop(timestamp){
+
+  if(!started){
+
+    return;
+
+  }
+
+
+  /*
+    每幀先畫貓咪
+  */
+
+  drawAR();
+
+
+  /*
+    動作判斷
+  */
+
+  await updateState();
+
+
+  updateDebug();
+
+
+  /*
+    MediaPipe 不需要每一幀都送，
+    約 15 FPS 即可降低手機負擔。
+  */
+
+  if(
+    timestamp -
+    lastFrameTime >
+    65
+  ){
+
+    lastFrameTime =
+      timestamp;
+
+
+    try{
+
+      await faceMesh.send({
+
+        image:webcam
+
+      });
+
+
+      await hands.send({
+
+        image:webcam
+
+      });
+
+    }catch(error){
+
+      console.warn(
+        'MediaPipe error',
+        error
+      );
+
+    }
+
+  }
+
+
+  requestAnimationFrame(
+    arLoop
+  );
+
+}
+
+
+/* =========================================================
+   啟動 AR
+========================================================= */
+
+startBtn.onclick =
+async function(){
+
+  try{
+
     /*
-        FACE CENTER
+      HTTPS 檢查
     */
 
-    const faceCX =
-        faceData.centerX * w;
+    const localhost =
 
-    const faceCY =
-        faceData.centerY * h;
+      location.hostname ===
+      'localhost' ||
+
+      location.hostname ===
+      '127.0.0.1';
 
 
-    ctx.strokeStyle =
-        "#00ff00";
+    if(
+      !window.isSecureContext &&
+      !localhost
+    ){
 
-    ctx.beginPath();
+      alert(
+        '請使用 GitHub Pages HTTPS 開啟 AR'
+      );
 
-    ctx.moveTo(
-        faceCX - 12,
-        faceCY
-    );
+      return;
 
-    ctx.lineTo(
-        faceCX + 12,
-        faceCY
-    );
-
-    ctx.moveTo(
-        faceCX,
-        faceCY - 12
-    );
-
-    ctx.lineTo(
-        faceCX,
-        faceCY + 12
-    );
-
-    ctx.stroke();
+    }
 
 
     /*
-        CAT BOX
-        紅色
+      開啟相機
     */
 
-    if (rect) {
-
-        ctx.strokeStyle =
-            "#ff0000";
-
-        ctx.lineWidth =
-            3;
-
-        ctx.strokeRect(
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height
-        );
+    await startCamera();
 
 
-        /*
-            CAT CENTER
-        */
+    /*
+      AR 開始
+    */
 
-        ctx.beginPath();
-
-        ctx.moveTo(
-            rect.centerX - 12,
-            rect.centerY
-        );
-
-        ctx.lineTo(
-            rect.centerX + 12,
-            rect.centerY
-        );
-
-        ctx.moveTo(
-            rect.centerX,
-            rect.centerY - 12
-        );
-
-        ctx.lineTo(
-            rect.centerX,
-            rect.centerY + 12
-        );
-
-        ctx.stroke();
-
-    }
+    started =
+      true;
 
 
-    ctx.restore();
+    startOverlay
+      .classList
+      .add('hidden');
 
-}
+
+    /*
+      初始狀態
+    */
+
+    currentState =
+      'normal';
+
+
+    const firstVideo =
+      VIDEO_GROUPS.normal[0];
+
+
+    await loadCatVideo(
+      firstVideo
+    );
+
+
+    /*
+      開始 AR Loop
+    */
+
+    requestAnimationFrame(
+      arLoop
+    );
+
+
+  }catch(error){
+
+    console.error(
+      error
+    );
+
+
+    alert(
+      `AR 啟動失敗：${error.name || error.message}`
+    );
+
+  }
+
+};
 
 
 /* =========================================================
-   DEBUG VALUES
+   鏡頭按鈕
 ========================================================= */
 
-function updateDebug() {
+cameraBtn.onclick =
+async function(){
 
-    if (!DEBUG) {
-        return;
-    }
+  await switchCamera();
 
-
-    if (faceData) {
-
-        faceX.textContent =
-            Math.round(
-                faceData.centerX *
-                window.innerWidth
-            );
-
-        faceY.textContent =
-            Math.round(
-                faceData.centerY *
-                window.innerHeight
-            );
-
-        faceW.textContent =
-            Math.round(
-                faceData.width *
-                window.innerWidth
-            );
-
-        faceH.textContent =
-            Math.round(
-                faceData.height *
-                window.innerHeight
-            );
-
-    }
-    else {
-
-        faceX.textContent = 0;
-        faceY.textContent = 0;
-        faceW.textContent = 0;
-        faceH.textContent = 0;
-
-    }
-
-
-    const rect =
-        calculateCatRect();
-
-
-    if (rect) {
-
-        catX.textContent =
-            Math.round(
-                rect.x
-            );
-
-        catY.textContent =
-            Math.round(
-                rect.y
-            );
-
-        catW.textContent =
-            Math.round(
-                rect.width
-            );
-
-        catH.textContent =
-            Math.round(
-                rect.height
-            );
-
-    }
-    else {
-
-        catX.textContent = 0;
-        catY.textContent = 0;
-        catW.textContent = 0;
-        catH.textContent = 0;
-
-    }
-
-
-    mouthState.textContent =
-        mouthOpen
-            ? "OPEN"
-            : "CLOSED";
-
-
-    handState.textContent =
-        palmOpen
-            ? "OPEN"
-            : "CLOSED";
-
-
-    videoState.textContent =
-        currentVideoName ||
-        "NONE";
-
-}
+};
 
 
 /* =========================================================
-   DEBUG VIDEO
+   Debug 按鈕
 ========================================================= */
 
-function updateDebugVideo() {
+debugBtn.onclick =
+function(){
 
-    if (!DEBUG) {
-        return;
-    }
+  debugVisible =
+    !debugVisible;
 
-    videoState.textContent =
-        currentVideoName ||
-        "NONE";
+  debug.style.display =
+    debugVisible
+      ? 'block'
+      : 'none';
 
-}
-
-
-/* =========================================================
-   START BUTTON
-========================================================= */
-
-startButton.addEventListener(
-    "click",
-    async () => {
-
-        /*
-            使用者點擊後才啟動 camera，
-            對 iPhone Safari 最穩定。
-        */
-
-        await startCamera();
-
-    }
-);
+};
 
 
 /* =========================================================
-   AUTO CLEANUP
+   頁面事件
 ========================================================= */
 
 window.addEventListener(
-    "beforeunload",
-    () => {
+  'resize',
+  resizeCanvas
+);
 
-        running = false;
 
+window.addEventListener(
+  'orientationchange',
+  () => {
 
-        if (
-            camera.srcObject
-        ) {
+    setTimeout(
+      resizeCanvas,
+      500
+    );
 
-            const tracks =
-                camera.srcObject
-                    .getTracks();
-
-            tracks.forEach(
-                track =>
-                    track.stop()
-            );
-
-        }
-
-        if (catVideo) {
-
-            catVideo.pause();
-
-        }
-
-    }
+  }
 );
 
 
 /* =========================================================
-   INITIAL
+   初始 Debug
 ========================================================= */
 
-resizeCanvas();
+debug.style.display =
+  'none';
 
 console.log(
-    "🐱 AR Cat Filter V2 loaded"
+  '🐱 AR 貓咪 V3 已載入'
 );
 
 console.log(
-    "Debug mode:",
-    DEBUG
+  '一般：',
+  VIDEO_GROUPS.normal
 );
 
 console.log(
-    "CAT_CONFIG:",
-    CAT_CONFIG
+  '張嘴：',
+  VIDEO_GROUPS.mouthOpen
 );
 
 console.log(
-    "CAT_VIDEOS:",
-    CAT_VIDEOS
+  '張開手掌：',
+  VIDEO_GROUPS.handOpen
 );
 
 </script>
