@@ -90,16 +90,17 @@
       transform: scale(0.95);
     }
 
-    /* 修正畫面不對稱歪斜：讓視訊與畫布保持置中與正確比例填滿 */
+    /* 💡 強化版美顏、美膚、磨皮與氣色濾鏡 */
     video, canvas {
       position: absolute !important;
       top: 50% !important;
       left: 50% !important;
-      transform: translate(-50%, -50%) !important;
+      transform: translate(-50%, -50%) scaleX(-1) !important;
       width: 100vw !important;
       height: 100vh !important;
       object-fit: cover !important;
-      filter: brightness(1.12) contrast(1.05) saturate(1.1) drop-shadow(0 0 2px rgba(255,255,255,0.2));
+      /* 升級磨皮、美白與紅潤氣色效果：微光暈柔焦 + 提亮 + 溫润對比 + 微微粉嫩色調 */
+      filter: brightness(1.18) contrast(0.96) saturate(1.15) blur(0.4px) drop-shadow(0 0 4px rgba(255, 182, 193, 0.4));
     }
   </style>
 </head>
@@ -107,7 +108,6 @@
 
   <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
   
-  <!-- 互動說明提示文字 -->
   <div id="interaction-tip">✨ 試著「張開嘴巴」或「張開手掌」看看驚喜互動！</div>
 
   <div id="controls">
@@ -118,66 +118,80 @@
   <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
     <a-assets>
       <!-- 一般狀態 (4部) -->
-      <video id="v-normal-1" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-2" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-3" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-4" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-0" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-1" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-2" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
       
       <!-- 張開嘴巴 (3部) -->
-      <video id="v-mouth-1" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-2" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-3" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
 
       <!-- 張開手掌 (2部) -->
-      <video id="v-hand-1" src="cry_cat_animation.mp4.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-2" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-0" src="cry_cat_animation.mp4.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-1" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" active="false"></a-camera>
 
     <a-entity mindar-face-target="anchorIndex: 10">
-      <a-video id="cat-video-plane" src="#v-normal-1" position="0 0.5 0" width="1" height="1" rotation="0 0 0"></a-video>
+      <a-video id="video-normal-0" src="#v-normal-0" position="0 0.5 0" width="1" height="1" visible="true"></a-video>
+      <a-video id="video-normal-1" src="#v-normal-1" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+      <a-video id="video-normal-2" src="#v-normal-2" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+      <a-video id="video-normal-3" src="#v-normal-3" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+
+      <a-video id="video-mouth-0" src="#v-mouth-0" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+      <a-video id="video-mouth-1" src="#v-mouth-1" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+      <a-video id="video-mouth-2" src="#v-mouth-2" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+
+      <a-video id="video-hand-0" src="#v-hand-0" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
+      <a-video id="video-hand-1" src="#v-hand-1" position="0 0.5 0" width="1" height="1" visible="false"></a-video>
     </a-entity>
   </a-scene>
 
   <script>
-    // 1. 依照新檔名與數量組織分類結構
-    const animationVideos = {
-      normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3', '#v-normal-4'],
-      mouthOpen: ['#v-mouth-1', '#v-mouth-2', '#v-mouth-3'],
-      handPalm: ['#v-hand-1', '#v-hand-2']
+    const animationGroups = {
+      normal: ['video-normal-0', 'video-normal-1', 'video-normal-2', 'video-normal-3'],
+      mouthOpen: ['video-mouth-0', 'video-mouth-1', 'video-mouth-2'],
+      handPalm: ['video-hand-0', 'video-hand-1']
     };
 
     let currentCategory = 'normal';
     let currentIndex = 0;
-    const videoPlane = document.querySelector('#cat-video-plane');
 
-    // 2. 切換影片特效函式
-    function switchAnimation(category, index = 0) {
+    window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('a-assets video').forEach(v => {
+        v.play().catch(e => console.log("等待互動解鎖播放:", e));
+      });
+      switchAnimation('normal', 0);
+    });
+
+    function switchAnimation(category, index) {
       currentCategory = category;
-      currentIndex = index % animationVideos[category].length;
-      const targetVideoSelector = animationVideos[category][currentIndex];
-      
-      // 停止所有影片
-      document.querySelectorAll('a-assets video').forEach(v => v.pause());
-      
-      // 設定並播放新影片
-      videoPlane.setAttribute('src', targetVideoSelector);
-      const activeVideoEl = document.querySelector(targetVideoSelector);
-      if (activeVideoEl) {
-        activeVideoEl.play().catch(e => console.log("自動播放限制:", e));
+      currentIndex = index % animationGroups[category].length;
+
+      for (let cat in animationGroups) {
+        animationGroups[cat].forEach((id, idx) => {
+          const el = document.getElementById(id);
+          const videoEl = document.querySelector(el.getAttribute('src'));
+          if (cat === category && idx === currentIndex) {
+            el.setAttribute('visible', 'true');
+            if (videoEl) videoEl.play();
+          } else {
+            el.setAttribute('visible', 'false');
+            if (videoEl) videoEl.pause();
+          }
+        });
       }
-      console.log(`已切換至特效: ${targetVideoSelector}`);
     }
 
-    // 3. 點擊畫面任意處即可循環切換不同互動影片
     window.addEventListener('click', () => {
       let categories = ['normal', 'mouthOpen', 'handPalm'];
       let catIndex = categories.indexOf(currentCategory);
       
       currentIndex++;
-      // 如果當前分類的影片輪播完了，就切換到下一個分類
-      if (currentIndex >= animationVideos[currentCategory].length) {
+      if (currentIndex >= animationGroups[currentCategory].length) {
         currentIndex = 0;
         catIndex = (catIndex + 1) % categories.length;
       }
@@ -185,12 +199,6 @@
       switchAnimation(categories[catIndex], currentIndex);
     });
 
-    // 初始化預設播放第一部
-    window.addEventListener('DOMContentLoaded', () => {
-      switchAnimation('normal', 0);
-    });
-
-    // 4. 錄影與拍照合成畫布邏輯
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder;
     let recordedChunks = [];
@@ -238,7 +246,6 @@
       recordBtn.style.background = 'linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%)';
     }
 
-    // 拍照存檔功能
     document.getElementById('snapshot-btn').addEventListener('click', () => {
       const arCanvas = document.querySelector('canvas');
       if (!arCanvas) return;
