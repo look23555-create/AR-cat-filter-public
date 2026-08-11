@@ -7,165 +7,67 @@
   
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-aframe.prod.js"></script>
-  
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: 'Microsoft JhengHei', sans-serif;
-      background-color: #000;
+    body { margin: 0; overflow: hidden; font-family: 'Microsoft JhengHei', sans-serif; background-color: #000; }
+    #custom-banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255, 105, 180, 0.85); color: white; padding: 8px 20px; border-radius: 20px; font-size: 15px; font-weight: bold; z-index: 999; pointer-events: none; white-space: nowrap; }
+    #interaction-tip { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.6); color: #ffe6ea; padding: 6px 16px; border-radius: 15px; font-size: 13px; z-index: 999; pointer-events: none; white-space: nowrap; }
+    
+    /* 強制授權全螢幕遮罩 */
+    #permission-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.92); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 99999; color: white; text-align: center; padding: 30px; box-sizing: border-box;
     }
-
-    #custom-banner {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 105, 180, 0.85);
-      color: white;
-      padding: 8px 20px;
-      border-radius: 20px;
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 1px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      z-index: 999;
-      pointer-events: none;
-      white-space: nowrap;
-    }
-
-    #interaction-tip {
-      position: fixed;
-      top: 72px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
-      color: #ffe6ea;
-      padding: 6px 16px;
-      border-radius: 15px;
-      font-size: 13px;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      z-index: 999;
-      pointer-events: none;
-      white-space: nowrap;
-      animation: pulse-tip 2s infinite;
-    }
-
-    @keyframes pulse-tip {
-      0% { opacity: 0.8; }
-      50% { opacity: 1; transform: translateX(-50%) scale(1.03); }
-      100% { opacity: 0.8; }
-    }
-
-    #start-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-      color: white;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-
-    #start-overlay h2 {
-      margin-bottom: 10px;
-      color: #ff7eb3;
-    }
-
-    #start-overlay p {
-      margin-bottom: 25px;
-      font-size: 14px;
-      color: #ddd;
-    }
-
-    #controls {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 15px;
-      z-index: 999;
-    }
-
+    #permission-overlay h2 { color: #ff7eb3; margin-bottom: 15px; }
+    #permission-overlay p { color: #ccc; font-size: 14px; margin-bottom: 25px; line-height: 1.6; }
+    
     .btn {
-      background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 30px;
-      font-size: 16px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      cursor: pointer;
-      transition: transform 0.2s, background 0.2s;
+      background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%); color: white; border: none;
+      padding: 14px 28px; border-radius: 30px; font-size: 18px; font-weight: bold;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4); cursor: pointer;
     }
-
-    .btn:active {
-      transform: scale(0.95);
-    }
-
-    /* 確保行動裝置全螢幕與鏡頭正確對齊與翻轉 */
+    
     video, canvas {
-      position: absolute !important;
-      top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) scaleX(-1) !important;
-      width: 100vw !important;
-      height: 100vh !important;
+      position: absolute !important; top: 50% !important; left: 50% !important;
+      transform: translate(-50%, -50%) scaleX(-1) !important; width: 100vw !important; height: 100vh !important;
       object-fit: cover !important;
-      filter: brightness(1.15) contrast(0.98) saturate(1.1) drop-shadow(0 0 4px rgba(255, 182, 193, 0.3));
     }
   </style>
 </head>
 <body>
 
-  <div id="start-overlay">
-    <h2>🐾 奶牛貓 AR 互動美顏濾鏡</h2>
-    <p>請點擊下方按鈕以啟動相機並解鎖 AR 互動體驗</p>
-    <button class="btn" id="start-ar-btn">進入 AR 世界</button>
+  <div id="permission-overlay">
+    <h2>🐾 奶牛貓 AR 互動濾鏡</h2>
+    <p>為了讓 AR 鏡頭與貓咪動畫正常運作，<br>請點擊下方按鈕授權相機並進入世界！</p>
+    <button class="btn" id="grant-btn">點擊授權並啟動 AR</button>
   </div>
 
   <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
-  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」切換特效！</div>
+  <div id="interaction-tip">✨ 試著「張開嘴巴」或「張開手掌」切換貓咪特效！</div>
 
-  <div id="controls" style="display: none;">
-    <button class="btn" id="record-btn">開始錄影</button>
-    <button class="btn" id="snapshot-btn">拍照存檔</button>
-  </div>
-
-  <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
+  <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false">
     <a-assets>
-      <video id="v-normal-0" src="spider_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-1" src="champion_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-2" src="magic_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-0" src="spider_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-normal-1" src="champion_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-normal-2" src="magic_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
       
-      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
 
-      <video id="v-hand-0" src="cry_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-1" src="work_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-0" src="cry_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
+      <video id="v-hand-1" src="work_cat_animation.mp4" loop muted crossorigin="anonymous" playsinline webkit-playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" active="false"></a-camera>
 
     <a-entity mindar-face-target="anchorIndex: 10">
-      <a-video id="cat-video-plane" src="#v-normal-0" position="0 0.5 0" width="1" height="1" rotation="0 0 0"></a-video>
+      <a-video id="cat-video-plane" src="#v-normal-0" position="0 0.5 0" width="1" height="1"></a-video>
     </a-entity>
   </a-scene>
 
@@ -179,222 +81,115 @@
     let currentCategory = 'normal';
     let currentIndex = 0;
     const videoPlane = document.querySelector('#cat-video-plane');
-    let isAppRunning = false;
 
-    // 影片安全切換與跨平台強制撥放函式
     function switchAnimation(category, index = 0) {
       currentCategory = category;
       currentIndex = index % animationVideos[category].length;
-      const targetVideoSelector = animationVideos[category][currentIndex];
+      const targetSelector = animationVideos[category][currentIndex];
       
-      // 暫停所有影片以節省手機資源
-      document.querySelectorAll('a-assets video').forEach(v => {
-        v.pause();
-      });
+      document.querySelectorAll('a-assets video').forEach(v => v.pause());
       
-      videoPlane.setAttribute('src', targetVideoSelector);
-      const activeVideoEl = document.querySelector(targetVideoSelector);
-      
-      if (activeVideoEl) {
-        activeVideoEl.currentTime = 0;
-        activeVideoEl.play().catch(e => {
-          console.warn("影片播放遭瀏覽器限制:", e);
-        });
+      videoPlane.setAttribute('src', targetSelector);
+      const activeEl = document.querySelector(targetSelector);
+      if (activeEl) {
+        activeEl.currentTime = 0;
+        activeEl.play().catch(e => console.log("播放攔截:", e));
       }
     }
 
-    // 點擊畫面循環切換特效
+    // 點擊畫面切換
     window.addEventListener('click', (e) => {
-      // 避免點到控制按鈕時重複觸發
-      if (e.target.closest('#controls') || e.target.closest('#start-overlay')) return;
-
+      if (e.target.closest('#permission-overlay')) return;
       let categories = ['normal', 'mouthOpen', 'handPalm'];
       let catIndex = categories.indexOf(currentCategory);
-      
       currentIndex++;
       if (currentIndex >= animationVideos[currentCategory].length) {
         currentIndex = 0;
         catIndex = (catIndex + 1) % categories.length;
       }
-      
       switchAnimation(categories[catIndex], currentIndex);
     });
 
-    // 初始化 MediaPipe 模組
-    const faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-    });
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    
-    faceMesh.onResults(results => {
-      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-        const landmarks = results.multiFaceLandmarks[0];
-        const upperLip = landmarks[13];
-        const lowerLip = landmarks[14];
-        const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
+    // 核心授權與啟動按鈕
+    document.getElementById('grant-btn').addEventListener('click', async () => {
+      const overlay = document.getElementById('permission-overlay');
+      
+      try {
+        // 1. 強制主動跟瀏覽器索取相機權限（解決授權被擋問題）
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        
+        // 2. 授權成功後關閉遮罩
+        overlay.style.display = 'none';
 
-        // 偵測張嘴觸發
-        if (mouthOpenDistance > 0.05 && currentCategory !== 'mouthOpen') {
-          switchAnimation('mouthOpen', Math.floor(Math.random() * animationVideos.mouthOpen.length));
-        }
-      }
-    });
-
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 0, // 設為 0 以提升手機端執行效能與流暢度
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-
-    hands.onResults(results => {
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        let extendedFingers = 0;
-        const wrist = landmarks[0];
-        const tips = [4, 8, 12, 16, 20];
-        const pips = [2, 6, 10, 14, 18];
-
-        for (let i = 0; i < 5; i++) {
-          const tipDist = Math.hypot(landmarks[tips[i]].x - wrist.x, landmarks[tips[i]].y - wrist.y);
-          const pipDist = Math.hypot(landmarks[pips[i]].x - wrist.x, landmarks[pips[i]].y - wrist.y);
-          if (tipDist > pipDist * 1.2) {
-            extendedFingers++;
+        // 3. 強制預載並解鎖所有影片元素
+        const allVideos = document.querySelectorAll('a-assets video');
+        for (let v of allVideos) {
+          v.load();
+          try {
+            await v.play();
+            v.pause();
+            v.currentTime = 0;
+          } catch(err) {
+            console.log("影音解碼略過");
           }
         }
 
-        // 偵測手掌張開觸發
-        if (extendedFingers >= 4 && currentCategory !== 'handPalm') {
-          switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
-        }
+        // 4. 啟動預設動畫
+        switchAnimation('normal', 0);
+
+        // 5. 啟動 MediaPipe 辨識
+        initAI();
+
+      } catch (err) {
+        alert("相機授權失敗！請確認瀏覽器是否允許相機權限，或嘗試使用 Chrome / Safari 開啟網頁。");
+        console.error(err);
       }
     });
 
-    // 點擊「進入 AR 世界」按鈕後，一次性解鎖所有影音與相機權限（完美避開行動端自動播放限制）
-    document.getElementById('start-ar-btn').addEventListener('click', async () => {
-      const overlay = document.getElementById('start-overlay');
-      overlay.style.display = 'none';
-      document.getElementById('controls').style.display = 'flex';
-
-      // 1. 預載並靜音強制播放所有影片以解除 iOS 限制
-      const videoEls = document.querySelectorAll('a-assets video');
-      for (let v of videoEls) {
-        v.load();
-        try {
-          await v.play();
-          v.pause();
-          v.currentTime = 0;
-        } catch (err) {
-          console.log("預載影片略過:", err);
+    function initAI() {
+      const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+      faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      faceMesh.onResults(results => {
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+          const l = results.multiFaceLandmarks[0];
+          if (Math.abs(l[13].y - l[14].y) > 0.05 && currentCategory !== 'mouthOpen') {
+            switchAnimation('mouthOpen', Math.floor(Math.random() * animationVideos.mouthOpen.length));
+          }
         }
-      }
+      });
 
-      // 2. 啟動預設動畫
-      switchAnimation('normal', 0);
+      const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      hands.onResults(results => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const lm = results.multiHandLandmarks[0];
+          let ext = 0;
+          const wrist = lm[0];
+          [4, 8, 12, 16, 20].forEach((tip, i) => {
+            if (Math.hypot(lm[tip].x - wrist.x, lm[tip].y - wrist.y) > Math.hypot(lm[[2,6,10,14,18][i]].x - wrist.x, lm[[2,6,10,14,18][i]].y - wrist.y) * 1.2) ext++;
+          });
+          if (ext >= 4 && currentCategory !== 'handPalm') {
+            switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
+          }
+        }
+      });
 
-      // 3. 啟動手機相機與 AI 偵測迴圈
       setTimeout(() => {
         const videoElement = document.querySelector('video');
         if (videoElement) {
           const camera = new Camera(videoElement, {
             onFrame: async () => {
-              if (!isAppRunning) return;
               try {
                 await faceMesh.send({ image: videoElement });
                 await hands.send({ image: videoElement });
-              } catch (e) {
-                // 忽略單一影格計算逾時以防中斷
-              }
+              } catch(e) {}
             },
-            width: 640,  // 改為 640x480 降低手機處理負載，確保流暢不卡頓
-            height: 480
+            width: 640, height: 480
           });
-          camera.start().then(() => {
-            isAppRunning = true;
-          }).catch(e => {
-            alert("無法開啟相機，請確認是否授權相機權限。");
-            console.error(e);
-          });
+          camera.start();
         }
       }, 500);
-    });
-
-    // 錄影與拍照功能（合成畫布輸出）
-    const recordBtn = document.getElementById('record-btn');
-    let mediaRecorder;
-    let recordedChunks = [];
-
-    recordBtn.addEventListener('click', () => {
-      if (recordBtn.innerText === '開始錄影') {
-        startRecording();
-      } else {
-        stopRecording();
-      }
-    });
-
-    function startRecording() {
-      const arCanvas = document.querySelector('canvas');
-      if (!arCanvas) {
-        alert("AR 畫面尚未準備好！");
-        return;
-      }
-      
-      try {
-        const stream = arCanvas.captureStream(30);
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
-      } catch (e) {
-        try {
-          mediaRecorder = new MediaRecorder(arCanvas.captureStream(30)); // 兼容 fallback
-        } catch (err) {
-          alert("此瀏覽器不支援直接錄影功能！");
-          return;
-        }
-      }
-      
-      recordedChunks = [];
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
-      
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'ar_cat_beautified_video.webm';
-        a.click();
-      };
-
-      mediaRecorder.start();
-      recordBtn.innerText = '停止錄影';
-      recordBtn.style.background = '#ff4757';
     }
-
-    function stopRecording() {
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
-      recordBtn.innerText = '開始錄影';
-      recordBtn.style.background = 'linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%)';
-    }
-
-    document.getElementById('snapshot-btn').addEventListener('click', () => {
-      const arCanvas = document.querySelector('canvas');
-      if (!arCanvas) return;
-      
-      const link = document.createElement('a');
-      link.download = 'ar_cat_snapshot.png';
-      link.href = arCanvas.toDataURL('image/png');
-      link.click();
-    });
   </script>
 </body>
 </html>
