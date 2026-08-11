@@ -1,18 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Multi-Cat Video Filter</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>戴口罩也能辨識的 AR 貓咪濾鏡與錄影</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+
   <style>
-    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; -webkit-user-select: none; user-select: none; }
-    
-    video.webcam-video {
-      object-fit: cover;
-      filter: contrast(1.05) brightness(1.08) saturate(1.1);
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
     }
 
+    /* 確保視訊與畫布正確疊代與全螢幕覆蓋 */
+    #webcam, #output-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+
+    #webcam {
+      z-index: 1;
+      transform: scaleX(-1); /* 鏡像翻轉，符合自拍習慣 */
+    }
+
+    #output-canvas {
+      z-index: 2;
+      pointer-events: none; /* 讓點擊事件可以穿透 */
+      transform: scaleX(-1);
+    }
+
+    /* 頂部標題橫幅 */
     #custom-banner {
       position: fixed;
       top: 20px;
@@ -24,300 +49,193 @@
       border-radius: 20px;
       font-size: 15px;
       font-weight: bold;
-      letter-spacing: 1px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       z-index: 999;
       pointer-events: none;
-      text-align: center;
       white-space: nowrap;
     }
 
-    #status-hint {
-      position: fixed;
-      top: 65px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.65);
-      color: #ffeb3b;
-      padding: 4px 14px;
-      border-radius: 12px;
-      font-size: 13px;
-      z-index: 999;
-      pointer-events: none;
-    }
-
-    #ui-container {
+    /* 控制按鈕介面 */
+    #controls {
       position: fixed;
       bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 999;
       display: flex;
-      gap: 10px;
+      gap: 15px;
+      z-index: 1000;
     }
+
     .btn {
-      background-color: #ff4081;
-      color: white;
-      border: none;
       padding: 12px 24px;
-      font-size: 15px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      background: #ff9800;
+      border: none;
       border-radius: 30px;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: background 0.2s;
     }
-    .btn:active { background-color: #f50057; }
 
-    .floating-particle {
-      position: fixed;
-      pointer-events: none;
-      font-size: 26px;
-      animation: floatUp 2.5s linear infinite;
-      z-index: 998;
+    .btn:active {
+      transform: scale(0.95);
     }
-    @keyframes floatUp {
-      0% { transform: translateY(100vh) scale(0.6); opacity: 0; }
-      20% { opacity: 0.9; }
-      100% { transform: translateY(-50px) scale(1.3); opacity: 0; }
+
+    #record-btn {
+      background: #ff9800;
     }
   </style>
 </head>
 <body>
 
-  <div id="custom-banner">
-    🐾 多功能貓咪 AR 影片濾鏡 | <span id="live-date"></span> ❤️
+  <div id="custom-banner">✨ 戴口罩 AR 貓咪濾鏡體驗中</div>
+
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="output-canvas"></canvas>
+
+  <div id="controls">
+    <button id="record-btn" class="btn">🔴 開始錄影</button>
+    <button id="snapshot-btn" class="btn" style="background: #4CAF50;">📸 拍照存檔</button>
   </div>
-  
-  <div id="status-hint">💡 點擊畫面任意處即可啟動特效！</div>
 
-  <div id="ui-container">
-    <button class="btn" onclick="takeSnapshot()">📸 拍照留念</button>
-    <button id="record-btn" class="btn" style="background-color: #ff9800;" onclick="toggleRecord()">🔴 開始錄影</button>
-  </div>
-
-  <a-scene id="ar-scene" mindar-face="maxTrack: 2;" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-assets>
-      <video id="chef-video" src="chef_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="drink-video" src="drink_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="cry-video" src="cry_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="magic-video" src="magic_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="work-video" src="work_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="sleep-video" src="sleep_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-      <video id="eat-video" src="eat_cat_animation.mp4" playsinline crossorigin="anonymous"></video>
-    </a-assets>
-
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-    <a-entity mindar-face-target="anchorIndex: 10" id="face-target">
-      <a-plane id="cat-display-plane" class="animated-cat" src="#drink-video" position="0 0.9 0" height="1.25" width="0.7" rotation="0 0 0" 
-        material="transparent: true; shader: flat;"></a-plane>
-    </a-entity>
-  </a-scene>
+  <img id="cat-asset" src="chef_cat_animation.png" style="display: none;" alt="Cat Animation">
 
   <script>
-    // 0. 自動抓取當下時間
-    function updateLiveDate() {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      document.getElementById('live-date').innerText = `${year}.${month}.${day}`;
-    }
-    updateLiveDate();
+    const videoElement = document.getElementById('webcam');
+    const canvasElement = document.getElementById('output-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const recordBtn = document.getElementById('record-btn');
+    const snapshotBtn = document.getElementById('snapshot-btn');
+    const catImg = document.getElementById('cat-asset');
 
-    const statusHint = document.querySelector('#status-hint');
-    const displayPlane = document.querySelector('#cat-display-plane');
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+    let latestDetections = [];
 
-    // 影片清單分類
-    const mouthVideos = ['chef-video', 'eat-video'];
-    const handVideos = ['cry-video', 'work-video'];
-    const idleVideos = ['drink-video', 'magic-video', 'sleep-video'];
+    // 初始化 MediaPipe Face Detection（支援戴口罩辨識）
+    const faceDetection = new FaceDetection({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+    });
 
-    let currentVideoElement = null;
-    let isLocked = false; // 確保影片播完前不被強制中斷
-    let idleIndex = 0;
+    faceDetection.setOptions({
+      model: 'short', // 適用於自拍近距離
+      minDetectionConfidence: 0.5
+    });
 
-    function playVideoById(videoId, onCompleteCallback) {
-      if (currentVideoElement) {
-        currentVideoElement.pause();
-        currentVideoElement.currentTime = 0;
-        currentVideoElement.onended = null;
-      }
-
-      const nextVideo = document.querySelector(`#${videoId}`);
-      if (!nextVideo) return;
-
-      currentVideoElement = nextVideo;
-      displayPlane.setAttribute('src', `#${videoId}`);
+    faceDetection.onResults((results) => {
+      canvasElement.width = videoElement.videoWidth || 640;
+      canvasElement.height = videoElement.videoHeight || 480;
       
-      isLocked = true;
-      nextVideo.play().then(() => {
-        statusHint.innerText = `🎬 播放中: ${videoId.replace('-video', '')}`;
-      }).catch(err => {
-        console.log("播放被阻擋:", err);
-        isLocked = false;
-      });
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      latestDetections = results.detections || [];
 
-      nextVideo.onended = () => {
-        isLocked = false;
-        if (onCompleteCallback) onCompleteCallback();
-      };
-    }
+      // 繪製頭頂貓咪動畫邏輯
+      for (const detection of latestDetections) {
+        const bbox = detection.boundingBox;
+        
+        // 將相對座標轉換為畫布實際像素
+        const x = bbox.xCenter * canvasElement.width;
+        const y = bbox.yCenter * canvasElement.height;
+        const w = bbox.width * canvasElement.width;
+        const h = bbox.height * canvasElement.height;
 
-    // 播放一般待機循環影片
-    function playNextIdle() {
-      if (isLocked) return;
-      const vId = idleVideos[idleIndex];
-      idleIndex = (idleIndex + 1) % idleVideos.length;
-      playVideoById(vId, () => {
-        if (!isLocked) playNextIdle();
-      });
-    }
+        // 計算頭頂位置（在偵測框上方偏移一些距離）
+        const catWidth = w * 1.2;
+        const catHeight = w * 1.2;
+        const catX = x - catWidth / 2;
+        const catY = y - h / 2 - catHeight * 0.8; // 位於頭頂上方
 
-    // 1. 點擊畫面解鎖影音限制並開始播放
-    window.addEventListener('click', (e) => {
-      if (e.target.tagName !== 'BUTTON') {
-        if (!currentVideoElement || currentVideoElement.paused) {
-          playNextIdle();
-          statusHint.innerText = "✨ 貓咪影片濾鏡已啟動！";
+        // 畫上 Q 版貓咪動畫/圖片
+        if (catImg.complete) {
+          canvasCtx.drawImage(catImg, catX, catY, catWidth, catHeight);
         }
       }
     });
 
-    // 模擬偵測觸發事件（可對應你的手勢/張嘴 AI 狀態機或鍵盤測試）
-    // 當偵測到「張嘴」時呼叫此函數
-    function triggerMouthOpen() {
-      if (isLocked) return; // 確保上一部影片播完才切換
-      const randomV = mouthVideos[Math.floor(Math.random() * mouthVideos.length)];
-      playVideoById(randomV, () => {
-        playNextIdle();
-      });
+    // 啟動相機串流
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await faceDetection.send({ image: videoElement });
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+
+    // ==========================================
+    // 關鍵解決方案：建立「隱藏合成畫布」以支援完整錄影與拍照
+    // ==========================================
+    const combinedCanvas = document.createElement('canvas');
+    const combinedCtx = combinedCanvas.getContext('2d');
+
+    function updateCombinedCanvas() {
+      combinedCanvas.width = videoElement.videoWidth || 640;
+      combinedCanvas.height = videoElement.videoHeight || 480;
+
+      // 1. 先畫入底層的鏡頭畫面（同時處理鏡像翻轉，確保錄影畫面與預覽一致）
+      combinedCtx.save();
+      combinedCtx.scale(-1, 1);
+      combinedCtx.drawImage(videoElement, -combinedCanvas.width, 0, combinedCanvas.width, combinedCanvas.height);
+      combinedCtx.restore();
+
+      // 2. 再疊加上層的 AR 貓咪動畫圖層
+      combinedCtx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
     }
 
-    // 當偵測到「張開手掌」時呼叫此函數
-    function triggerHandOpen() {
-      if (isLocked) return; // 確保上一部影片播完才切換
-      const randomV = handVideos[Math.floor(Math.random() * handVideos.length)];
-      playVideoById(randomV, () => {
-        playNextIdle();
-      });
-    }
-
-    // 2. 背景持續飄落特效
-    function createFloatingParticle() {
-      const symbols = ["🐾", "❤️", "✨", "🐟", "⭐"];
-      const particle = document.createElement('div');
-      particle.className = 'floating-particle';
-      particle.innerText = symbols[Math.floor(Math.random() * symbols.length)];
-      particle.style.left = Math.random() * (window.innerWidth - 40) + 'px';
-      document.body.appendChild(particle);
-      setTimeout(() => particle.remove(), 2500);
-    }
-    setInterval(createFloatingParticle, 400);
-
-    // 3. 拍照功能
-    function takeSnapshot() {
-      const video = document.querySelector('video');
-      const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
-      const banner = document.getElementById('custom-banner');
-      
-      if (!video) {
-        alert("畫面準備中，請稍後再試！");
-        return;
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-
-      ctx.filter = 'contrast(1.05) brightness(1.08) saturate(1.1)';
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      ctx.filter = 'none';
-      if (canvasElement) {
-        ctx.drawImage(canvasElement, 0, 0, canvas.width, canvas.height);
-      }
-
-      if (banner) {
-        ctx.font = 'bold 20px sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-        ctx.shadowBlur = 6;
-        ctx.fillText(banner.innerText, canvas.width / 2, 45);
-      }
-
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = 'AR-Cat-Filter-HD.png';
-      link.click();
-    }
-
-    // 4. 動態錄影功能
-    let mediaRecorder;
-    let recordedChunks = [];
-    let isRecording = false;
-
-    function toggleRecord() {
-      const recordBtn = document.getElementById('record-btn');
-      const video = document.querySelector('video');
-      const canvasElement = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
-
+    // --- 錄影功能 ---
+    recordBtn.addEventListener('click', () => {
       if (!isRecording) {
-        const combinedCanvas = document.createElement('canvas');
-        combinedCanvas.width = video.videoWidth || 640;
-        combinedCanvas.height = video.videoHeight || 480;
-        const ctx = combinedCanvas.getContext('2d');
-
+        recordedChunks = [];
+        // 從合成畫布中取得資料流 (FPS 設定為 30)
         const stream = combinedCanvas.captureStream(30);
         
         try {
           mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
         } catch (e) {
-          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder = new MediaRecorder(stream); // 兼容性備援
         }
 
-        recordedChunks = [];
-        
-        mediaRecorder.ondataavailable = function(event) {
-          if (event.data.size > 0) {
-            recordedChunks.push(event.data);
-          }
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) recordedChunks.push(event.data);
         };
 
-        mediaRecorder.onstop = function() {
+        mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: 'video/webm' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'AR-Cat-Video.webm';
+          a.download = 'chef_cat_animation.webm';
           a.click();
+          URL.revokeObjectURL(url);
         };
 
-        window.arRecordInterval = setInterval(() => {
-          ctx.filter = 'contrast(1.05) brightness(1.08) saturate(1.1)';
-          ctx.drawImage(video, 0, 0, combinedCanvas.width, combinedCanvas.height);
-          ctx.filter = 'none';
-          if (canvasElement) {
-            ctx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
-          }
-        }, 1000 / 30);
-
+        // 定時更新合成畫面給錄影機
+        window.recordInterval = setInterval(updateCombinedCanvas, 1000 / 30);
         mediaRecorder.start();
         isRecording = true;
-        recordBtn.innerText = "⏹️ 停止錄影";
-        recordBtn.style.backgroundColor = "#f44336";
-        statusHint.innerText = "🔴 正在錄製 AR 影片中...";
+        recordBtn.innerText = '⏹️ 停止錄影';
+        recordBtn.style.backgroundColor = '#f44336';
       } else {
         mediaRecorder.stop();
-        clearInterval(window.arRecordInterval);
+        clearInterval(window.recordInterval);
         isRecording = false;
-        recordBtn.innerText = "🔴 開始錄影";
-        recordBtn.style.backgroundColor = "#ff9800";
-        statusHint.innerText = "✨ 錄影完成，影片已自動下載！";
+        recordBtn.innerText = '🔴 開始錄影';
+        recordBtn.style.backgroundColor = '#ff9800';
       }
-    }
+    });
+
+    // --- 拍照存檔功能 ---
+    snapshotBtn.addEventListener('click', () => {
+      updateCombinedCanvas();
+      const dataURL = combinedCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'ar_cat_photo.png';
+      a.click();
+    });
   </script>
 </body>
 </html>
