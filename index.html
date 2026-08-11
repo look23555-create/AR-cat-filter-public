@@ -93,18 +93,28 @@
     /* 💡 美顏濾鏡核心樣式：提升亮度、微調對比與柔焦美肌 */
     video, canvas {
       filter: brightness(1.12) contrast(1.05) saturate(1.1) drop-shadow(0 0 2px rgba(255,255,255,0.2));
-    }
-
-    /* 背景特效影片全版覆蓋 */
+   /* 背景特效影片全版覆蓋 (調整 z-index 確保在最底層) */
     #bg-video-container {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
+      height: 100vw;
+      width: 100vw;
       height: 100vh;
-      z-index: -1;
+      z-index: -10; /* 調整為更低的負值，確保在視訊與 AR canvas 底下 */
       object-fit: cover;
       pointer-events: none;
+    }
+
+    /* 確保 MindAR 產生的視訊與 Canvas 能夠正確顯示在背景之上 */
+    .mindar-ui-video, canvas {
+      position: absolute !important;
+      top: 0;
+      left: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: -1; /* 讓人像視訊與 AR 畫面高於背景影片 */
     }
   </style>
 </head>
