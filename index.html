@@ -8,7 +8,6 @@
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-aframe.prod.js"></script>
   
-  <!-- 引入 MediaPipe 相關相機、人臉與手部偵測模組 -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -20,7 +19,6 @@
       font-family: 'Microsoft JhengHei', sans-serif;
     }
 
-    /* 頂部標題橫幅 */
     #custom-banner {
       position: fixed;
       top: 20px;
@@ -39,7 +37,6 @@
       white-space: nowrap;
     }
 
-    /* 互動說明提示橫幅樣式 */
     #interaction-tip {
       position: fixed;
       top: 72px;
@@ -64,7 +61,6 @@
       100% { opacity: 0.8; }
     }
 
-    /* 控制按鈕介面 */
     #controls {
       position: fixed;
       bottom: 30px;
@@ -92,7 +88,6 @@
       transform: scale(0.95);
     }
 
-    /* 💡 美顏磨皮美膚 + 鏡像翻轉 */
     video, canvas {
       position: absolute !important;
       top: 50% !important;
@@ -109,7 +104,7 @@
 
   <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
   
-  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」解鎖驚喜互動！</div>
+  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」解鎖對應影片互動！</div>
 
   <div id="controls">
     <button class="btn" id="record-btn">開始錄影</button>
@@ -119,33 +114,33 @@
   <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
     <a-assets>
       <!-- 一般狀態 (4部) -->
-      <video id="v-normal-1" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-2" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-3" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-normal-4" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-0" src="spider_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-1" src="champion_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-2" src="magic_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-3" src="sleep_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
       
       <!-- 張開嘴巴 (3部) -->
-      <video id="v-mouth-1" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-2" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-mouth-3" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-0" src="chef_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-1" src="eat_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-2" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
 
-      <!-- 張開手掌 (2部) -->
-      <video id="v-hand-1" src="cry_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
-      <video id="v-hand-2" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <!-- 張開手掌 (2部) - 修正副檔名 -->
+      <video id="v-hand-0" src="cry_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-1" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" active="false"></a-camera>
 
     <a-entity mindar-face-target="anchorIndex: 10">
-      <a-video id="cat-video-plane" src="#v-normal-1" position="0 0.5 0" width="1" height="1" rotation="0 0 0"></a-video>
+      <a-video id="cat-video-plane" src="#v-normal-0" position="0 0.5 0" width="1" height="1" rotation="0 0 0"></a-video>
     </a-entity>
   </a-scene>
 
   <script>
     const animationVideos = {
-      normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3', '#v-normal-4'],
-      mouthOpen: ['#v-mouth-1', '#v-mouth-2', '#v-mouth-3'],
-      handPalm: ['#v-hand-1', '#v-hand-2']
+      normal: ['#v-normal-0', '#v-normal-1', '#v-normal-2', '#v-normal-3'],
+      mouthOpen: ['#v-mouth-0', '#v-mouth-1', '#v-mouth-2'],
+      handPalm: ['#v-hand-0', '#v-hand-1']
     };
 
     let currentCategory = 'normal';
@@ -181,7 +176,6 @@
       switchAnimation(categories[catIndex], currentIndex);
     });
 
-    // 初始化與預載影片
     window.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('a-assets video').forEach(v => {
         v.load();
@@ -189,7 +183,7 @@
       switchAnimation('normal', 0);
     });
 
-    // 1. MediaPipe Face Mesh（偵測張開嘴巴）
+    // 1. 臉部網格偵測（張開嘴巴）
     const faceMesh = new FaceMesh({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
@@ -212,7 +206,7 @@
       }
     });
 
-    // 2. MediaPipe Hands（偵測張開手掌）
+    // 2. 手部關節偵測（張開手掌）
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
@@ -225,14 +219,12 @@
     hands.onResults(results => {
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         const landmarks = results.multiHandLandmarks[0];
-        // 透過計算手指尖端（指尖 4, 8, 12, 16, 20）與手腕(0)的距離來判斷手掌是否張開
         let extendedFingers = 0;
         const wrist = landmarks[0];
         const tips = [4, 8, 12, 16, 20];
         const pips = [2, 6, 10, 14, 18];
 
         for (let i = 0; i < 5; i++) {
-          // 簡易比較指尖與對應關節到手腕的距離
           const tipDist = Math.hypot(landmarks[tips[i]].x - wrist.x, landmarks[tips[i]].y - wrist.y);
           const pipDist = Math.hypot(landmarks[pips[i]].x - wrist.x, landmarks[pips[i]].y - wrist.y);
           if (tipDist > pipDist * 1.2) {
@@ -240,14 +232,13 @@
           }
         }
 
-        // 當偵測到 4隻或5隻手指伸直（張開手掌）時切換至手掌系列影片
         if (extendedFingers >= 4 && currentCategory !== 'handPalm') {
           switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
         }
       }
     });
 
-    // 3. 整合相機串流，同時餵給 FaceMesh 與 Hands 進行雙模組運算
+    // 3. 啟動相機並同時執行雙模組運算
     window.addEventListener('load', () => {
       setTimeout(() => {
         const videoElement = document.querySelector('video');
