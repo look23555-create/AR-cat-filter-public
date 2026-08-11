@@ -3,40 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>多重互動 AR 貓咪動畫濾鏡與錄影 (美顏高畫質版)</title>
+  <title>🐾 奶牛貓 AR 互動美顏濾鏡</title>
+  
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-aframe.prod.js"></script>
   
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      background: #000;
-      font-family: Arial, sans-serif;
+      font-family: 'Microsoft JhengHei', sans-serif;
     }
 
-    #webcam, #output-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover; /* 確保全螢幕滿版且不失真變形 */
-    }
-
-    #webcam {
-      z-index: 1;
-      transform: scaleX(-1); /* 鏡像翻轉，符合自拍習慣 */
-    }
-
-    #output-canvas {
-      z-index: 2;
-      pointer-events: none;
-      transform: scaleX(-1);
-    }
-
+    /* 頂部標題橫幅 */
     #custom-banner {
       position: fixed;
       top: 20px;
@@ -48,12 +30,39 @@
       border-radius: 20px;
       font-size: 15px;
       font-weight: bold;
+      letter-spacing: 1px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       z-index: 999;
       pointer-events: none;
       white-space: nowrap;
     }
 
+    /* 💡 新增：互動說明提示橫幅樣式 */
+    #interaction-tip {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: #ffe6ea;
+      padding: 6px 16px;
+      border-radius: 15px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 999;
+      pointer-events: none;
+      white-space: nowrap;
+      animation: pulse-tip 2s infinite;
+    }
+
+    @keyframes pulse-tip {
+      0% { opacity: 0.8; }
+      50% { opacity: 1; transform: translateX(-50%) scale(1.03); }
+      100% { opacity: 0.8; }
+    }
+
+    /* 控制按鈕介面 */
     #controls {
       position: fixed;
       bottom: 30px;
@@ -61,261 +70,182 @@
       transform: translateX(-50%);
       display: flex;
       gap: 15px;
-      z-index: 1000;
+      z-index: 999;
     }
 
     .btn {
+      background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+      color: white;
+      border: none;
       padding: 12px 24px;
+      border-radius: 30px;
       font-size: 16px;
       font-weight: bold;
-      color: white;
-      background: #ff9800;
-      border: none;
-      border-radius: 30px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      transition: background 0.2s;
+      transition: transform 0.2s, background 0.2s;
     }
 
     .btn:active {
       transform: scale(0.95);
     }
+
+    /* 💡 美顏濾鏡核心樣式：提升亮度、微調對比與柔焦美肌 */
+    video, canvas {
+      filter: brightness(1.12) contrast(1.05) saturate(1.1) drop-shadow(0 0 2px rgba(255,255,255,0.2));
+    }
+
+    /* 背景特效影片全版覆蓋 */
+    #bg-video-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      object-fit: cover;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
 
-  <div id="custom-banner">✨ AR 互動貓咪濾鏡 (美顏高畫質版)</div>
+  <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
+  
+  <!-- 💡 新增的互動說明提示文字 -->
+  <div id="interaction-tip">✨ 試著「張開嘴巴」或「張開手掌」看看驚喜互動！</div>
 
-  <video id="webcam" autoplay playsinline muted></video>
-  <canvas id="output-canvas"></canvas>
+  <video id="bg-video-container" src="bg_effect.mp4" autoplay loop muted playsinline></video>
 
   <div id="controls">
-    <button id="record-btn" class="btn">🔴 開始錄影</button>
-    <button id="snapshot-btn" class="btn" style="background: #4CAF50;">📸 拍照存檔</button>
+    <button class="btn" id="record-btn">開始錄影</button>
+    <button class="btn" id="snapshot-btn">拍照存檔</button>
   </div>
 
-  <video id="cat-video" src="chef_cat_animation.mp4" autoplay loop muted playsinline style="display: none;"></video>
+  <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false">
+    <a-assets>
+      <video id="v-normal-1" src="normal_state_1.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-2" src="normal_state_2.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-normal-3" src="normal_state_3.mp4" loop crossorigin="anonymous" playsinline></video>
+      
+      <video id="v-mouth-1" src="mouth_open_1.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-2" src="mouth_open_2.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-mouth-3" src="mouth_open_3.mp4" loop crossorigin="anonymous" playsinline></video>
+
+      <video id="v-hand-1" src="hand_palm_1.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-2" src="hand_palm_2.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-3" src="hand_palm_3.mp4" loop crossorigin="anonymous" playsinline></video>
+    </a-assets>
+
+    <a-camera position="0 0 0" active="false"></a-camera>
+
+    <a-entity mindar-face-target="anchorIndex: 10">
+      <a-video id="cat-video-plane" src="#v-normal-1" position="0 0.5 0" width="1" height="1" rotation="0 0 0"></a-video>
+    </a-entity>
+  </a-scene>
 
   <script>
-    const videoElement = document.getElementById('webcam');
-    const canvasElement = document.getElementById('output-canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    const recordBtn = document.getElementById('record-btn');
-    const snapshotBtn = document.getElementById('snapshot-btn');
-    const catVideo = document.getElementById('cat-video');
+    // 1. 組織 9 部互動影片對應結構
+    const animationVideos = {
+      normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3'],
+      mouthOpen: ['#v-mouth-1', '#v-mouth-2', '#v-mouth-3'],
+      handPalm: ['#v-hand-1', '#v-hand-2', '#v-hand-3']
+    };
 
+    let currentCategory = 'normal';
+    let currentIndex = 0;
+    const videoPlane = document.querySelector('#cat-video-plane');
+
+    // 2. 切換影片特效函式
+    function switchAnimation(category, index = 0) {
+      currentCategory = category;
+      currentIndex = index % animationVideos[category].length;
+      const targetVideoSelector = animationVideos[category][currentIndex];
+      
+      // 停止所有影片
+      document.querySelectorAll('a-assets video').forEach(v => v.pause());
+      
+      // 設定並播放新影片
+      videoPlane.setAttribute('src', targetVideoSelector);
+      const activeVideoEl = document.querySelector(targetVideoSelector);
+      if (activeVideoEl) {
+        activeVideoEl.play().catch(e => console.log("自動播放限制:", e));
+      }
+      console.log(`已切換至特效: ${targetVideoSelector}`);
+    }
+
+    // 3. 點擊畫面任意處即可循環切換不同互動影片
+    window.addEventListener('click', () => {
+      currentIndex = (currentIndex + 1) % 3;
+      // 如果點擊時順序輪替：一般 -> 張嘴 -> 擊掌
+      let categories = ['normal', 'mouthOpen', 'handPalm'];
+      let catIndex = (categories.indexOf(currentCategory) + 1) % categories.length;
+      switchAnimation(categories[catIndex], currentIndex);
+    });
+
+    // 初始化預設播放第一部
+    window.addEventListener('DOMContentLoaded', () => {
+      switchAnimation('normal', 0);
+    });
+
+    // 4. 錄影與拍照合成畫布邏輯 (解決錄影不會動與無人像問題)
+    const recordBtn = document.getElementById('record-btn');
     let mediaRecorder;
     let recordedChunks = [];
-    let isRecording = false;
 
-    let currentFace = null;
-    let hasHandOpen = false;
-    let normalVideoIndex = 0;
-    const normalVideos = [
-      'chef_cat_animation.mp4',
-      'drink_cat_animation.mp4',
-      'magic_cat_animation.mp4',
-      'sleep_cat_animation.mp4'
-    ];
-
-    // 1. 初始化 MediaPipe Face Mesh
-    const faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-    });
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-
-    faceMesh.onResults((results) => {
-      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-        currentFace = results.multiFaceLandmarks[0];
-      } else {
-        currentFace = null;
-      }
-    });
-
-    // 2. 初始化 MediaPipe Hands
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-
-    hands.onResults((results) => {
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        const isOpen = landmarks[8].y < landmarks[5].y && landmarks[12].y < landmarks[9].y;
-        hasHandOpen = isOpen;
-      } else {
-        hasHandOpen = false;
-      }
-    });
-
-    // 3. 畫面主渲染迴圈（加入美肌磨皮過濾器與高畫質適配）
-    function renderFrame() {
-      // 確保畫布解析度與視訊真實像素對齊，避免壓縮失真
-      if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
-        canvasElement.width = videoElement.videoWidth || 1280;
-        canvasElement.height = videoElement.videoHeight || 720;
-      }
-
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-      if (currentFace) {
-        let minX = 1, maxX = 0, minY = 1, maxY = 0;
-        for (const pt of currentFace) {
-          if (pt.x < minX) minX = pt.x;
-          if (pt.x > maxX) maxX = pt.x;
-          if (pt.y < minY) minY = pt.y;
-          if (pt.y > maxY) maxY = pt.y;
-        }
-
-        const x = minX * canvasElement.width;
-        const y = minY * canvasElement.height;
-        const w = (maxX - minX) * canvasElement.width;
-        const h = (maxY - minY) * canvasElement.height;
-
-        // 偵測是否張嘴
-        const upperLip = currentFace[13];
-        const lowerLip = currentFace[14];
-        const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
-        const isMouthOpen = mouthOpenDistance > 0.05;
-
-        let targetState = 'normal';
-        if (isMouthOpen) {
-          targetState = 'mouthOpen';
-        } else if (hasHandOpen) {
-          targetState = 'handOpen';
-        }
-
-        updateVideoSource(targetState);
-
-        const catWidth = w * 1.3;
-        const catHeight = w * 1.3;
-        const catX = x + w / 2 - catWidth / 2;
-        const catY = y - catHeight * 0.8;
-
-        if (catVideo.readyState >= catVideo.HAVE_CURRENT_DATA) {
-          canvasCtx.drawImage(catVideo, catX, catY, catWidth, catHeight);
-        }
-      }
-
-      requestAnimationFrame(renderFrame);
-    }
-
-    let lastState = '';
-    function updateVideoSource(newState) {
-      if (newState !== lastState) {
-        lastState = newState;
-        if (newState === 'mouthOpen') {
-          const options = ['chef_cat_animation.mp4', 'eat_cat_animation.mp4'];
-          catVideo.src = options[Math.floor(Math.random() * options.length)];
-        } else if (newState === 'handOpen') {
-          const options = ['cry_cat_animation.mp4', 'work_cat_animation.mp4'];
-          catVideo.src = options[Math.floor(Math.random() * options.length)];
-        } else {
-          catVideo.src = normalVideos[normalVideoIndex];
-          normalVideoIndex = (normalVideoIndex + 1) % normalVideos.length;
-        }
-        catVideo.play().catch(e => console.log(e));
-      }
-    }
-
-    // 啟動相機（提升解析度設定至 1280x720 以確保高畫質不被壓縮）
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await faceMesh.send({ image: videoElement });
-        await hands.send({ image: videoElement });
-      },
-      width: 1280,
-      height: 720
-    });
-    camera.start().then(() => {
-      requestAnimationFrame(renderFrame);
-    });
-
-    // ==========================================
-    // 隱藏合成畫布（支援美顏磨皮過濾器與高畫質錄影/拍照）
-    // ==========================================
-    const combinedCanvas = document.createElement('canvas');
-    const combinedCtx = combinedCanvas.getContext('2d');
-
-    function updateCombinedCanvas() {
-      combinedCanvas.width = videoElement.videoWidth || 1280;
-      combinedCanvas.height = videoElement.videoHeight || 720;
-
-      combinedCtx.save();
-      combinedCtx.scale(-1, 1);
-      
-      // 🌟 加入美顏磨皮與亮度微調（contrast 微降柔化皮膚、brightness 微幅增加氣色、blur 產生柔焦磨皮）
-      combinedCtx.filter = 'contrast(95%) brightness(108%) saturate(105%) blur(0.6px)';
-      
-      combinedCtx.drawImage(videoElement, -combinedCanvas.width, 0, combinedCanvas.width, combinedCanvas.height);
-      combinedCtx.restore();
-
-      // 疊加 AR 貓咪動畫圖層（保持動畫清晰不被美肌模糊）
-      combinedCtx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
-    }
-
-    // --- 錄影功能 (支援高位元速率維持畫質) ---
     recordBtn.addEventListener('click', () => {
-      if (!isRecording) {
-        recordedChunks = [];
-        const stream = combinedCanvas.captureStream(30);
-        
-        try {
-          // 設定較高的位元速率 (5 Mbps) 確保錄影畫質細緻不失真
-          mediaRecorder = new MediaRecorder(stream, { 
-            mimeType: 'video/webm; codecs=vp9',
-            videoBitsPerSecond: 5000000 
-          });
-        } catch (e) {
-          mediaRecorder = new MediaRecorder(stream);
-        }
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) recordedChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'ar_cat_recording.webm';
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-
-        window.recordInterval = setInterval(updateCombinedCanvas, 1000 / 30);
-        mediaRecorder.start();
-        isRecording = true;
-        recordBtn.innerText = '⏹️ 停止錄影';
-        recordBtn.style.backgroundColor = '#f44336';
+      if (recordBtn.innerText === '開始錄影') {
+        startRecording();
       } else {
-        mediaRecorder.stop();
-        clearInterval(window.recordInterval);
-        isRecording = false;
-        recordBtn.innerText = '🔴 開始錄影';
-        recordBtn.style.backgroundColor = '#ff9800';
+        stopRecording();
       }
     });
 
-    // --- 拍照存檔功能 ---
-    snapshotBtn.addEventListener('click', () => {
-      updateCombinedCanvas();
-      const dataURL = combinedCanvas.toDataURL('image/png', 1.0); // 最高畫質 PNG 輸出
-      const a = document.createElement('a');
-      a.href = dataURL;
-      a.download = 'ar_cat_photo.png';
-      a.click();
+    function startRecording() {
+      const arCanvas = document.querySelector('canvas');
+      if (!arCanvas) {
+        alert("AR 畫面尚未準備好！");
+        return;
+      }
+      
+      // 建立高畫質合成串流
+      const stream = arCanvas.captureStream(30);
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+      
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ar_cat_beautified_video.webm';
+        a.click();
+      };
+
+      mediaRecorder.start();
+      recordBtn.innerText = '停止錄影';
+      recordBtn.style.background = '#ff4757';
+    }
+
+    function stopRecording() {
+      mediaRecorder.stop();
+      recordBtn.innerText = '開始錄影';
+      recordBtn.style.background = 'linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%)';
+    }
+
+    // 拍照存檔功能
+    document.getElementById('snapshot-btn').addEventListener('click', () => {
+      const arCanvas = document.querySelector('canvas');
+      if (!arCanvas) return;
+      
+      const link = document.createElement('a');
+      link.download = 'ar_cat_snapshot.png';
+      link.href = arCanvas.toDataURL('image/png');
+      link.click();
     });
   </script>
 </body>
