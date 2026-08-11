@@ -120,6 +120,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
 </div>
 
 <script>
+/*
+音效檔案（全部放在 GitHub 與 index.html 同一層）：
+- cat_sweet_voice4.mp3       → 預設貓叫
+- fry_potatoes.mp3           → chef
+- slurp_ramen.mp3            → eat
+- open_bottled_coffee.mp3    → drink
+- background_music.mp3       → 背景音樂（可選；目前未提供時不播放背景音樂）
+
+沒有專屬音效的影片一律播放 cat_sweet_voice4.mp3。
+*/
+
 'use strict';
 
 /* =========================
@@ -511,10 +522,10 @@ async function changeARVideo(state){
   let name;
   if(state === 'mouthOpen'){
     name = nextMouthVideo();
-    triggerCatSound();
+    triggerCatSound(currentVideoName || currentVideo || '');
   }else if(state === 'handOpen'){
     name = nextHandVideo();
-    triggerCatSound();
+    triggerCatSound(currentVideoName || currentVideo || '');
   }
   else {
     // 回到 normal 時只在目前影片結束或不存在時切換
@@ -694,26 +705,112 @@ async function toggleSound(){
   }
 }
 
-function triggerCatSound(){
-  if(!audioEnabled || !audioCtx || !audioDestination) return;
-  const now=audioCtx.currentTime;
-  const osc=audioCtx.createOscillator();
-  const gain=audioCtx.createGain();
-  osc.type='sine';
-  osc.frequency.setValueAtTime(620,now);
-  osc.frequency.exponentialRampToValueAtTime(340,now+0.16);
-  osc.frequency.exponentialRampToValueAtTime(210,now+0.42);
-  gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(0.11,now+0.035);
-  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.44);
-  osc.connect(gain); gain.connect(audioDestination);
-  // 同時播放給使用者聽
-  const monitor=audioCtx.createGain();
-  monitor.gain.value=0.95;
-  gain.connect(monitor); monitor.connect(audioCtx.destination);
-  osc.start(now); osc.stop(now+0.47);
-  addCatParticles();
+
+async function initAudio(){
+  if(audioCtx) {
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    return;
+  }
+
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) throw new Error('Web Audio 不支援');
+
+  audioCtx = new Ctx();
+  audioDestination = audioCtx.createMediaStreamDestination();
+
+  const makeAudio = (file, loop=false) => {
+    const a = new Audio('./' + file);
+    a.preload = 'auto';
+    a.loop = loop;
+    a.playsInline = true;
+    a.crossOrigin = 'anonymous';
+    return a;
+  };
+
+  bgMusic = makeAudio('background_music.mp3', true);
+  catMeow = makeAudio('cat_sweet_voice4.mp3');
+  soundCooking = makeAudio('fry_potatoes.mp3');
+  soundEating = makeAudio('slurp_ramen.mp3');
+  soundDrinking = makeAudio('open_bottled_coffee.mp3');
+
+  musicGain = audioCtx.createGain();
+  sfxGain = audioCtx.createGain();
+
+  musicGain.gain.value = 0.16;
+  sfxGain.gain.value = 0.78;
+
+  const connect = (audio, gain) => {
+    const source = audioCtx.createMediaElementSource(audio);
+    source.connect(gain);
+  };
+
+  connect(bgMusic, musicGain);
+  connect(catMeow, sfxGain);
+  connect(soundCooking, sfxGain);
+  connect(soundEating, sfxGain);
+  connect(soundDrinking, sfxGain);
+
+  // 同時送到手機喇叭與錄影用音軌
+  musicGain.connect(audioCtx.destination);
+  musicGain.connect(audioDestination);
+  sfxGain.connect(audioCtx.destination);
+  sfxGain.connect(audioDestination);
+
+  if(audioCtx.state === 'suspended') await audioCtx.resume();
+
+  audioEnabled = true;
 }
+
+function playSoundForVideo(videoName){
+  if(!audioEnabled) return;
+
+  let audio = catMeow;
+  if(videoName.includes('chef_cat_animation')) audio = soundCooking;
+  else if(videoName.includes('eat_cat_animation')) audio = soundEating;
+  else if(videoName.includes('drink_cat_animation')) audio = soundDrinking;
+
+  if(!audio) return;
+
+  audio.currentTime = 0;
+  audio.play().catch(()=>{});
+}
+
+function stopInteractionSounds(){
+  [catMeow, soundCooking, soundEating, soundDrinking].forEach(a=>{
+    if(a){
+      a.pause();
+      try { a.currentTime = 0; } catch(e){}
+    }
+  });
+}
+
+async function toggleSound(){
+  try{
+    await initAudio();
+    audioEnabled = !audioEnabled;
+    if(musicGain) musicGain.gain.value = audioEnabled ? 0.16 : 0;
+    if(sfxGain) sfxGain.gain.value = audioEnabled ? 0.78 : 0;
+
+    const btn = document.getElementById('soundBtn');
+    if(btn){
+      btn.textContent = audioEnabled ? '🔊' : '🔇';
+      btn.title = audioEnabled ? '關閉聲音' : '開啟聲音';
+    }
+
+    if(audioEnabled) bgMusic?.play().catch(()=>{});
+    else {
+      bgMusic?.pause();
+      stopInteractionSounds();
+    }
+  }catch(err){
+    console.warn('Audio init failed:', err);
+  }
+}
+
+function triggerCatSound(videoName){
+  playSoundForVideo(videoName || '');
+}
+
 
 function addCatParticles(){
   const g=getFaceGeometry();
