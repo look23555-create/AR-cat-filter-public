@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>戴口罩也能辨識的 AR 貓咪濾鏡與錄影</title>
+  <title>多重互動 AR 貓咪動畫濾鏡與錄影</title>
   
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
     body {
@@ -16,7 +17,6 @@
       font-family: Arial, sans-serif;
     }
 
-    /* 確保視訊與畫布正確疊代與全螢幕覆蓋 */
     #webcam, #output-canvas {
       position: absolute;
       top: 0;
@@ -33,11 +33,10 @@
 
     #output-canvas {
       z-index: 2;
-      pointer-events: none; /* 讓點擊事件可以穿透 */
+      pointer-events: none;
       transform: scaleX(-1);
     }
 
-    /* 頂部標題橫幅 */
     #custom-banner {
       position: fixed;
       top: 20px;
@@ -55,7 +54,6 @@
       white-space: nowrap;
     }
 
-    /* 控制按鈕介面 */
     #controls {
       position: fixed;
       bottom: 30px;
@@ -82,15 +80,11 @@
     .btn:active {
       transform: scale(0.95);
     }
-
-    #record-btn {
-      background: #ff9800;
-    }
   </style>
 </head>
 <body>
 
-  <div id="custom-banner">✨ 戴口罩 AR 貓咪濾鏡體驗中</div>
+  <div id="custom-banner">✨ AR 互動貓咪濾鏡體驗中 (一般/張嘴/手掌切換)</div>
 
   <video id="webcam" autoplay playsinline muted></video>
   <canvas id="output-canvas"></canvas>
@@ -100,7 +94,7 @@
     <button id="snapshot-btn" class="btn" style="background: #4CAF50;">📸 拍照存檔</button>
   </div>
 
-  <img id="cat-asset" src="chef_cat_animation.png" style="display: none;" alt="Cat Animation">
+  <video id="cat-video" src="chef_cat_animation.mp4" autoplay loop muted playsinline style="display: none;"></video>
 
   <script>
     const videoElement = document.getElementById('webcam');
@@ -108,65 +102,154 @@
     const canvasCtx = canvasElement.getContext('2d');
     const recordBtn = document.getElementById('record-btn');
     const snapshotBtn = document.getElementById('snapshot-btn');
-    const catImg = document.getElementById('cat-asset');
+    const catVideo = document.getElementById('cat-video');
 
     let mediaRecorder;
     let recordedChunks = [];
     let isRecording = false;
-    let latestDetections = [];
 
-    // 初始化 MediaPipe Face Detection（支援戴口罩辨識）
-    const faceDetection = new FaceDetection({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+    let currentFace = null;
+    let hasHandOpen = false;
+    let currentAnimationState = 'normal'; // 可為 'mouthOpen', 'handOpen', 'normal'
+    let normalVideoIndex = 0;
+    const normalVideos = [
+      'chef_cat_animation.mp4',
+      'drink_cat_animation.mp4',
+      'magic_cat_animation.mp4',
+      'sleep_cat_animation.mp4'
+    ];
+
+    // 1. 初始化 MediaPipe Face Mesh（用來精準抓取頭頂位置與計算張嘴狀態）
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
     });
 
-    faceDetection.setOptions({
-      model: 'short', // 適用於自拍近距離
-      minDetectionConfidence: 0.5
-    });
-
-    faceDetection.onResults((results) => {
-      canvasElement.width = videoElement.videoWidth || 640;
-      canvasElement.height = videoElement.videoHeight || 480;
-      
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      latestDetections = results.detections || [];
-
-      // 繪製頭頂貓咪動畫邏輯
-      for (const detection of latestDetections) {
-        const bbox = detection.boundingBox;
-        
-        // 將相對座標轉換為畫布實際像素
-        const x = bbox.xCenter * canvasElement.width;
-        const y = bbox.yCenter * canvasElement.height;
-        const w = bbox.width * canvasElement.width;
-        const h = bbox.height * canvasElement.height;
-
-        // 計算頭頂位置（在偵測框上方偏移一些距離）
-        const catWidth = w * 1.2;
-        const catHeight = w * 1.2;
-        const catX = x - catWidth / 2;
-        const catY = y - h / 2 - catHeight * 0.8; // 位於頭頂上方
-
-        // 畫上 Q 版貓咪動畫/圖片
-        if (catImg.complete) {
-          canvasCtx.drawImage(catImg, catX, catY, catWidth, catHeight);
-        }
+    faceMesh.onResults((results) => {
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        currentFace = results.multiFaceLandmarks[0];
+      } else {
+        currentFace = null;
       }
     });
 
-    // 啟動相機串流
+    // 2. 初始化 MediaPipe Hands（用來偵測手掌張開）
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        // 簡單判斷手掌是否張開：檢查手指指尖（4, 8, 12, 16, 20）是否高於對應的關節
+        // 這裡以食指(8)與指根(5)的相對高度做簡易示範
+        const isOpen = landmarks[8].y < landmarks[5].y && landmarks[12].y < landmarks[9].y;
+        hasHandOpen = isOpen;
+      } else {
+        hasHandOpen = false;
+      }
+    });
+
+    // 3. 畫面主渲染迴圈（每一幀執行特效邏輯與繪製）
+    function renderFrame() {
+      canvasElement.width = videoElement.videoWidth || 640;
+      canvasElement.height = videoElement.videoHeight || 480;
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (currentFace) {
+        // 計算臉部邊界框與頭頂位置
+        let minX = 1, maxX = 0, minY = 1, maxY = 0;
+        for (const pt of currentFace) {
+          if (pt.x < minX) minX = pt.x;
+          if (pt.x > maxX) maxX = pt.x;
+          if (pt.y < minY) minY = pt.y;
+          if (pt.y > maxY) maxY = pt.y;
+        }
+
+        const x = minX * canvasElement.width;
+        const y = minY * canvasElement.height;
+        const w = (maxX - minX) * canvasElement.width;
+        const h = (maxY - minY) * canvasElement.height;
+
+        // 偵測是否張嘴：計算上嘴唇(13)與下嘴唇(14)的距離
+        const upperLip = currentFace[13];
+        const lowerLip = currentFace[14];
+        const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
+        const isMouthOpen = mouthOpenDistance > 0.05; // 閥值可根據實際情況微調
+
+        // 決定目前要播放的動畫狀態
+        let targetState = 'normal';
+        if (isMouthOpen) {
+          targetState = 'mouthOpen';
+        } else if (hasHandOpen) {
+          targetState = 'handOpen';
+        }
+
+        // 切換影片來源邏輯
+        updateVideoSource(targetState);
+
+        // 計算頭頂位置繪製影片
+        const catWidth = w * 1.3;
+        const catHeight = w * 1.3;
+        const catX = x + w / 2 - catWidth / 2;
+        const catY = y - catHeight * 0.8;
+
+        if (catVideo.readyState >= catVideo.HAVE_CURRENT_DATA) {
+          canvasCtx.drawImage(catVideo, catX, catY, catWidth, catHeight);
+        }
+      }
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    // 動態切換對應影片清單的函式
+    let lastState = '';
+    function updateVideoSource(newState) {
+      if (newState !== lastState) {
+        lastState = newState;
+        if (newState === 'mouthOpen') {
+          // 張嘴隨機播放 chef 或 eat
+          const options = ['chef_cat_animation.mp4', 'eat_cat_animation.mp4'];
+          catVideo.src = options[Math.floor(Math.random() * options.length)];
+        } else if (newState === 'handOpen') {
+          // 張手隨機播放 cry 或 work
+          const options = ['cry_cat_animation.mp4', 'work_cat_animation.mp4'];
+          catVideo.src = options[Math.floor(Math.random() * options.length)];
+        } else {
+          // 一般狀態輪流播放其他影片
+          catVideo.src = normalVideos[normalVideoIndex];
+          normalVideoIndex = (normalVideoIndex + 1) % normalVideos.length;
+        }
+        catVideo.play().catch(e => console.log(e));
+      }
+    }
+
+    // 啟動相機與串流送入 AI 模型
     const camera = new Camera(videoElement, {
       onFrame: async () => {
-        await faceDetection.send({ image: videoElement });
+        await faceMesh.send({ image: videoElement });
+        await hands.send({ image: videoElement });
       },
       width: 640,
       height: 480
     });
-    camera.start();
+    camera.start().then(() => {
+      requestAnimationFrame(renderFrame);
+    });
 
     // ==========================================
-    // 關鍵解決方案：建立「隱藏合成畫布」以支援完整錄影與拍照
+    // 隱藏合成畫布（確保錄影與拍照能完整保存人像與 AR 動畫）
     // ==========================================
     const combinedCanvas = document.createElement('canvas');
     const combinedCtx = combinedCanvas.getContext('2d');
@@ -175,13 +258,11 @@
       combinedCanvas.width = videoElement.videoWidth || 640;
       combinedCanvas.height = videoElement.videoHeight || 480;
 
-      // 1. 先畫入底層的鏡頭畫面（同時處理鏡像翻轉，確保錄影畫面與預覽一致）
       combinedCtx.save();
       combinedCtx.scale(-1, 1);
       combinedCtx.drawImage(videoElement, -combinedCanvas.width, 0, combinedCanvas.width, combinedCanvas.height);
       combinedCtx.restore();
 
-      // 2. 再疊加上層的 AR 貓咪動畫圖層
       combinedCtx.drawImage(canvasElement, 0, 0, combinedCanvas.width, combinedCanvas.height);
     }
 
@@ -189,13 +270,12 @@
     recordBtn.addEventListener('click', () => {
       if (!isRecording) {
         recordedChunks = [];
-        // 從合成畫布中取得資料流 (FPS 設定為 30)
         const stream = combinedCanvas.captureStream(30);
         
         try {
           mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
         } catch (e) {
-          mediaRecorder = new MediaRecorder(stream); // 兼容性備援
+          mediaRecorder = new MediaRecorder(stream);
         }
 
         mediaRecorder.ondataavailable = (event) => {
@@ -207,12 +287,11 @@
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'chef_cat_animation.webm';
+          a.download = 'ar_cat_recording.webm';
           a.click();
           URL.revokeObjectURL(url);
         };
 
-        // 定時更新合成畫面給錄影機
         window.recordInterval = setInterval(updateCombinedCanvas, 1000 / 30);
         mediaRecorder.start();
         isRecording = true;
