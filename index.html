@@ -69,6 +69,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .captureBtn{width:58px;height:58px;padding:0;border-radius:50%;background:#fff;color:#111;border:4px solid rgba(255,255,255,.35);box-shadow:0 8px 30px rgba(0,0,0,.35)}
 .captureBtn.recording{background:#ff4050;color:#fff}
 #switchBtn{width:46px;height:46px;padding:0;background:rgba(0,0,0,.55);backdrop-filter:blur(10px)}
+.miniAction{width:46px;height:46px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(255,255,255,.18)}
+.hidden{display:none!important}
 #recordPreview,#testVideo{display:none!important}
 @media(max-width:680px){
   #stage{height:100svh;min-height:100svh}
@@ -99,6 +101,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button>
       <button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button>
       <button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button>
+      <button id="downloadBtn" class="miniAction hidden" title="下載剛完成的影片" aria-label="下載影片">⬇️</button>
     </div>
 
     <div id="startOverlay">
@@ -609,34 +612,78 @@ function supportedMime(){
   ];
   return types.find(t=>MediaRecorder.isTypeSupported?.(t)) || '';
 }
-function toggleRecording(){
+async function ensureRecordingAudio(){
+  if(audioCtx){
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    return;
+  }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioDestination = audioCtx.createMediaStreamDestination();
+
+  bgMusic = new Audio('background_music.mp3');
+  bgMusic.loop = true;
+  bgMusic.preload = 'auto';
+  bgMusic.crossOrigin = 'anonymous';
+
+  meowAudio = new Audio('cat_meow.mp3');
+  meowAudio.preload = 'auto';
+  meowAudio.crossOrigin = 'anonymous';
+
+  const musicSource = audioCtx.createMediaElementSource(bgMusic);
+  const meowSource = audioCtx.createMediaElementSource(meowAudio);
+  const musicGain = audioCtx.createGain();
+  const meowGain = audioCtx.createGain();
+  musicGain.gain.value = 0.18;
+  meowGain.gain.value = 0.65;
+  musicSource.connect(musicGain).connect(audioDestination);
+  meowSource.connect(meowGain).connect(audioDestination);
+
+  if(audioCtx.state === 'suspended') await audioCtx.resume();
+}
+function triggerCatSound(){
+  if(!meowAudio || !audioCtx) return;
+  meowAudio.currentTime = 0;
+  meowAudio.play().catch(()=>{});
+}
+
+async function toggleRecording(){
   if(!arStarted){log('請先啟動 AR');return;}
   if(recording){recorder.stop();return;}
   if(!recordCanvas.captureStream || !window.MediaRecorder){log('❌ 此瀏覽器不支援錄影');return;}
 
   const mime = supportedMime();
   try{
-    recorder = mime ? new MediaRecorder(recordCanvas.captureStream(30),{mimeType:mime}) : new MediaRecorder(recordCanvas.captureStream(30));
-  }catch(e){log(`❌ MediaRecorder：${e.message}`);return}
+    await ensureRecordingAudio();
+    const videoStream = recordCanvas.captureStream(30);
+    const mixedStream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...audioDestination.stream.getAudioTracks()
+    ]);
+    recorder = mime ? new MediaRecorder(mixedStream,{mimeType:mime}) : new MediaRecorder(mixedStream);
+  }catch(e){log(`❌ 錄影初始化：${e.message}`);return}
 
   chunks=[];
   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
   recorder.onstop=()=>{
     const type=recorder.mimeType||mime||'video/webm';
     recordedBlob=new Blob(chunks,{type});
+    bgMusic?.pause();
+    if(bgMusic) bgMusic.currentTime=0;
     if(recordedUrl) URL.revokeObjectURL(recordedUrl);
     recordedUrl=URL.createObjectURL(recordedBlob);
     $('recordPreview').src=recordedUrl;
     recording=false;
     $('recordBtn').classList.remove('recording');
     $('recordBtn').textContent='●';
+    $('downloadBtn').classList.remove('hidden');
     log('✅ 錄影完成');
   };
   recorder.start(1000);
   recording=true;
+  bgMusic?.play().catch(()=>{});
   $('recordBtn').classList.add('recording');
   $('recordBtn').textContent='■';
-  $('saveVideoBtn').classList.add('hidden');
+  $('downloadBtn').classList.add('hidden');
   log(`🔴 開始錄影：${mime||'瀏覽器格式'}`);
   recordFrame();
 }
@@ -762,6 +809,7 @@ $('startBtn').onclick=async()=>{
 ========================= */
 $('recordBtn').onclick=toggleRecording;
 $('snapshotBtn').onclick=snapshot;
+$('downloadBtn').onclick=saveVideo;
 $('switchBtn').onclick=switchCamera;
 
 /* =========================
