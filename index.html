@@ -2,561 +2,362 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 
-<meta
-  name="viewport"
-  content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
->
+<title>AR 貓咪｜互動濾鏡</title>
 
-<title>AR 貓咪</title>
-
-<script
-  src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"
-  crossorigin="anonymous">
-</script>
-
-<script
-  src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
-  crossorigin="anonymous">
-</script>
-
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
 <style>
-
-/* =====================================================
-   基本
-===================================================== */
-
 *{
   box-sizing:border-box;
   -webkit-tap-highlight-color:transparent;
 }
 
-html,
-body{
+html,body{
   margin:0;
   width:100%;
   height:100%;
   overflow:hidden;
-  background:#000;
+  background:#080a0f;
   color:#fff;
-  font-family:
-    Arial,
-    "Noto Sans TC",
-    sans-serif;
+  font-family:Arial,"Noto Sans TC",sans-serif;
 }
 
-body{
-  touch-action:manipulation;
+button{
+  border:0;
+  border-radius:12px;
+  padding:11px 14px;
+  color:#fff;
+  background:#246bfd;
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
 }
 
-
-/* =====================================================
-   APP
-===================================================== */
+button:active{
+  transform:scale(.97);
+}
 
 #app{
   position:fixed;
   inset:0;
-  width:100%;
-  height:100%;
-  background:#000;
+  overflow:auto;
 }
-
-
-/* =====================================================
-   AR 舞台
-===================================================== */
 
 #stage{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
+  position:relative;
+  width:100vw;
+  height:56.25vw;
+  max-height:72vh;
+  min-height:320px;
   background:#000;
+  overflow:hidden;
 }
 
-
-/*
-   真正給使用者看的 AR 畫面。
-
-   重要：
-   Canvas 不再使用 CSS scaleX(-1)。
-
-   是否鏡像完全交給 JavaScript 控制，
-   避免左右方向被翻轉兩次。
-*/
-
-#output{
-  position:absolute;
-  inset:0;
-
-  width:100%;
-  height:100%;
-
-  display:block;
-
-  object-fit:cover;
-
-  z-index:2;
-
-  pointer-events:none;
-}
-
-
-/*
-   webcam 只負責提供 MediaPipe 影像來源。
-
-   不直接顯示給使用者。
-*/
-
+/* 相機 */
 #webcam{
   position:absolute;
-
-  width:1px;
-  height:1px;
-
-  opacity:0;
-
-  pointer-events:none;
-
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  transform:scaleX(-1);
   z-index:1;
 }
 
-
-/* =====================================================
-   啟動畫面
-===================================================== */
-
-#startOverlay{
-
+/* AR */
+#output{
   position:absolute;
-
   inset:0;
-
-  z-index:20;
-
-  display:flex;
-
-  align-items:center;
-
-  justify-content:center;
-
-  background:
-    linear-gradient(
-      180deg,
-      rgba(0,0,0,.25),
-      rgba(0,0,0,.72)
-    );
-
-  text-align:center;
-
-  padding:24px;
-
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  z-index:2;
+  pointer-events:none;
 }
 
+/* 啟動 */
+#startOverlay{
+  position:absolute;
+  inset:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.72);
+  text-align:center;
+  padding:20px;
+}
 
 #startOverlay.hidden{
   display:none;
 }
 
-
 #startBox{
-  width:min(88vw,360px);
+  max-width:420px;
 }
-
-
-#startBox .logo{
-  font-size:64px;
-  margin-bottom:12px;
-}
-
 
 #startBox h1{
+  font-size:26px;
   margin:0 0 10px;
-  font-size:28px;
 }
-
 
 #startBox p{
-  margin:0 0 24px;
-
-  color:#eee;
-
-  font-size:15px;
-
   line-height:1.7;
+  color:#ddd;
 }
-
 
 #startBtn{
-
-  border:0;
-
-  border-radius:999px;
-
-  padding:15px 30px;
-
-  color:#fff;
-
-  background:
-    linear-gradient(
-      135deg,
-      #ff4f9a,
-      #ff7a59
-    );
-
   font-size:17px;
-
-  font-weight:700;
-
-  box-shadow:
-    0 8px 30px rgba(255,79,154,.35);
-
-  cursor:pointer;
-
+  background:#ff4f9a;
+  padding:14px 24px;
 }
 
+/* =========================
+   互動說明
+========================= */
 
-#startBtn:active{
-  transform:scale(.96);
-}
-
-
-/* =====================================================
-   AR 上方狀態
-===================================================== */
-
-#topStatus{
-
+#interactionGuide{
   position:absolute;
-
-  top:
-    max(18px, env(safe-area-inset-top));
-
   left:50%;
-
+  bottom:16px;
   transform:translateX(-50%);
-
-  z-index:10;
-
-  padding:7px 14px;
-
-  border-radius:999px;
-
-  background:rgba(0,0,0,.42);
-
-  backdrop-filter:blur(10px);
-
-  -webkit-backdrop-filter:blur(10px);
-
-  font-size:13px;
-
-  color:#fff;
-
-  opacity:0;
-
-  transition:opacity .25s ease;
-
+  z-index:8;
+  width:calc(100% - 28px);
+  max-width:520px;
+  padding:10px 14px;
+  border-radius:16px;
+  background:rgba(0,0,0,.58);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  text-align:center;
   pointer-events:none;
-
+  transition:opacity .25s ease,transform .25s ease;
 }
 
-
-#topStatus.show{
-  opacity:1;
+#guideTitle{
+  font-size:14px;
+  font-weight:800;
+  margin-bottom:4px;
 }
 
+#guideText{
+  font-size:12px;
+  color:#eee;
+  line-height:1.5;
+}
 
-/* =====================================================
-   下方控制列
-===================================================== */
+#interactionGuide.active{
+  transform:translateX(-50%) translateY(-4px);
+}
+
+/* =========================
+   控制面板
+========================= */
+
+#panel{
+  padding:14px;
+  max-width:900px;
+  margin:auto;
+}
+
+h2{
+  font-size:18px;
+  margin:14px 0 8px;
+}
+
+#overall{
+  padding:12px;
+  border-radius:12px;
+  background:#171b24;
+  margin-bottom:10px;
+  font-weight:700;
+}
+
+.statusGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+
+.status{
+  background:#171b24;
+  border-radius:10px;
+  padding:10px;
+  min-height:58px;
+}
+
+.status .title{
+  font-weight:700;
+  margin-bottom:5px;
+}
+
+.ok{color:#42e879}
+.bad{color:#ff6262}
+.wait{color:#ffd166}
+.info{color:#8db4ff}
+
+.small{
+  font-size:12px;
+  color:#aaa;
+  line-height:1.45;
+}
+
+/* =========================
+   影片
+========================= */
+
+#videoTests{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+
+.videoBtn{
+  background:#303746;
+  font-size:12px;
+  padding:9px 6px;
+}
+
+.videoBtn.ok{
+  background:#174f32;
+}
+
+#testVideo{
+  display:block;
+  width:100%;
+  max-height:240px;
+  background:#000;
+  border-radius:10px;
+  margin-top:8px;
+}
+
+/* =========================
+   控制
+========================= */
 
 #controls{
-
-  position:absolute;
-
-  left:0;
-  right:0;
-
-  bottom:
-    max(20px, env(safe-area-inset-bottom));
-
-  z-index:10;
-
   display:flex;
-
-  justify-content:center;
-
-  align-items:center;
-
-  gap:12px;
-
-  padding:0 18px;
-
+  flex-wrap:wrap;
+  gap:8px;
+  margin:10px 0;
 }
-
-
-.controlBtn{
-
-  width:54px;
-  height:54px;
-
-  border:0;
-
-  border-radius:50%;
-
-  display:flex;
-
-  align-items:center;
-
-  justify-content:center;
-
-  color:#fff;
-
-  background:rgba(0,0,0,.48);
-
-  border:1px solid rgba(255,255,255,.25);
-
-  backdrop-filter:blur(10px);
-
-  -webkit-backdrop-filter:blur(10px);
-
-  font-size:21px;
-
-  cursor:pointer;
-
-}
-
-
-.controlBtn:active{
-  transform:scale(.92);
-}
-
-
-#recordBtn{
-
-  width:68px;
-  height:68px;
-
-  background:
-    rgba(255,255,255,.95);
-
-  border:
-    5px solid rgba(255,255,255,.35);
-
-  color:#ff304f;
-
-  font-size:26px;
-
-}
-
 
 #recordBtn.recording{
-
-  background:#ff304f;
-
-  color:#fff;
-
-  animation:
-    recordPulse 1.2s infinite;
-
+  background:#d72f3d;
 }
 
-
-@keyframes recordPulse{
-
-  0%{
-    box-shadow:0 0 0 0 rgba(255,48,79,.55);
-  }
-
-  70%{
-    box-shadow:0 0 0 14px rgba(255,48,79,0);
-  }
-
-  100%{
-    box-shadow:0 0 0 0 rgba(255,48,79,0);
-  }
-
-}
-
-
-/* =====================================================
-   美膚控制
-===================================================== */
-
-#beautyPanel{
-
-  position:absolute;
-
-  left:50%;
-
-  bottom:
-    calc(
-      max(20px, env(safe-area-inset-bottom))
-      + 88px
-    );
-
-  transform:translateX(-50%);
-
-  z-index:10;
-
-  width:min(82vw,340px);
-
-  padding:10px 14px;
-
-  border-radius:18px;
-
-  background:rgba(0,0,0,.42);
-
-  backdrop-filter:blur(12px);
-
-  -webkit-backdrop-filter:blur(12px);
-
-  opacity:0;
-
-  pointer-events:none;
-
-  transition:
-    opacity .25s ease,
-    transform .25s ease;
-
-}
-
-
-#beautyPanel.show{
-
-  opacity:1;
-
-  pointer-events:auto;
-
-}
-
-
-.beautyTitle{
-
-  display:flex;
-
-  justify-content:space-between;
-
-  align-items:center;
-
-  margin-bottom:6px;
-
-  font-size:12px;
-
-}
-
-
-#beautyValue{
-  color:#ff8fbd;
-}
-
-
-#beautyRange{
-  width:100%;
-}
-
-
-/* =====================================================
-   隱藏錄影預覽
-===================================================== */
-
-#recordPreview{
+#saveVideoBtn{
+  background:#20a060;
   display:none;
 }
 
-
-/* =====================================================
-   錄影完成提示
-===================================================== */
-
-#saveNotice{
-
-  position:absolute;
-
-  left:50%;
-
-  top:50%;
-
-  transform:
-    translate(-50%,-50%)
-    scale(.95);
-
-  z-index:30;
-
-  padding:16px 22px;
-
-  border-radius:18px;
-
-  background:rgba(0,0,0,.75);
-
-  backdrop-filter:blur(12px);
-
-  -webkit-backdrop-filter:blur(12px);
-
-  font-size:15px;
-
-  opacity:0;
-
-  pointer-events:none;
-
-  transition:
-    opacity .25s ease,
-    transform .25s ease;
-
+#saveVideoBtn.show{
+  display:inline-block;
 }
 
-
-#saveNotice.show{
-
-  opacity:1;
-
-  transform:
-    translate(-50%,-50%)
-    scale(1);
-
+#snapshotBtn{
+  background:#8b5cf6;
 }
 
+/* =========================
+   美膚
+========================= */
 
-/* =====================================================
-   小螢幕
-===================================================== */
+#beautyControls{
+  background:#171b24;
+  padding:12px;
+  border-radius:12px;
+}
+
+.beautyRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:8px 0;
+}
+
+.beautyRow label{
+  width:70px;
+  font-size:13px;
+}
+
+.beautyRow input{
+  flex:1;
+}
+
+#beautyValue{
+  width:42px;
+  text-align:right;
+  font-size:12px;
+  color:#8db4ff;
+}
+
+/* =========================
+   錄影
+========================= */
+
+#recordPreview{
+  width:100%;
+  max-height:300px;
+  background:#000;
+  border-radius:10px;
+  margin-top:8px;
+  display:none;
+}
+
+/* =========================
+   Log
+========================= */
+
+#log{
+  height:150px;
+  overflow:auto;
+  background:#05070a;
+  border:1px solid #272d38;
+  border-radius:10px;
+  padding:9px;
+  font:12px/1.45 monospace;
+  white-space:pre-wrap;
+}
+
+#hint{
+  font-size:12px;
+  color:#aaa;
+  margin-top:8px;
+}
 
 @media(max-width:600px){
 
-  #startBox h1{
-    font-size:25px;
+  #stage{
+    height:72vh;
+    max-height:none;
+    min-height:400px;
   }
 
-  #startBox p{
-    font-size:14px;
+  .statusGrid{
+    grid-template-columns:1fr;
   }
 
+  #videoTests{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  #interactionGuide{
+    bottom:12px;
+  }
 }
-
 </style>
-
 </head>
-
 
 <body>
 
-
 <div id="app">
 
-
-  <!-- =================================================
-       AR 舞台
-  ================================================== -->
-
   <div id="stage">
-
-
-    <!-- MediaPipe 來源 -->
 
     <video
       id="webcam"
@@ -566,112 +367,147 @@ body{
       webkit-playsinline>
     </video>
 
-
-    <!-- 正式 AR 畫面 -->
-
     <canvas id="output"></canvas>
 
+    <!-- 互動說明 -->
+    <div id="interactionGuide">
 
-    <!-- 狀態 -->
+      <div id="guideTitle">
+        🐱 AR 貓咪互動
+      </div>
 
-    <div id="topStatus">
-      🐱 AR 貓咪
+      <div id="guideText">
+        👄 張開嘴巴　・　✋ 張開手掌
+      </div>
+
     </div>
-
-
-    <!-- 啟動 -->
 
     <div id="startOverlay">
 
       <div id="startBox">
 
-        <div class="logo">
-          🐱
-        </div>
-
-        <h1>
-          AR 貓咪
-        </h1>
+        <h1>🐱 AR 貓咪</h1>
 
         <p>
-          開啟相機，讓可愛貓咪出現在你的頭頂
+          讓貓咪跟著你的動作互動！<br>
+          👄 張開嘴巴：觸發嘴巴互動<br>
+          ✋ 張開手掌：觸發手掌互動
         </p>
 
         <button id="startBtn">
-          開始 AR
+          📷 開始 AR
         </button>
 
       </div>
 
     </div>
 
+  </div>
 
-    <!-- 美膚 -->
 
-    <div id="beautyPanel">
+  <div id="panel">
 
-      <div class="beautyTitle">
+    <div id="overall">
+      ⏳ 尚未開始
+    </div>
 
-        <span>
-          ✨ 美膚
-        </span>
 
-        <span id="beautyValue">
-          65
-        </span>
+    <div class="statusGrid">
+
+      <div class="status">
+        <div class="title">🌐 網站環境</div>
+        <div id="secureStatus" class="wait">等待</div>
+      </div>
+
+      <div class="status">
+        <div class="title">📷 相機</div>
+        <div id="cameraStatus" class="wait">等待</div>
+      </div>
+
+      <div class="status">
+        <div class="title">👤 人臉</div>
+        <div id="faceStatus" class="wait">等待</div>
+      </div>
+
+      <div class="status">
+        <div class="title">✋ 手掌</div>
+        <div id="handStatus" class="wait">等待</div>
+      </div>
+
+      <div class="status">
+        <div class="title">🎨 AR</div>
+        <div id="canvasStatus" class="wait">等待</div>
+      </div>
+
+      <div class="status">
+        <div class="title">🐱 貓咪影片</div>
+        <div id="catStatus" class="wait">等待</div>
+      </div>
+
+    </div>
+
+
+    <h2>✨ 美膚效果</h2>
+
+    <div id="beautyControls">
+
+      <div class="beautyRow">
+
+        <label>磨皮</label>
+
+        <input
+          id="beautyRange"
+          type="range"
+          min="0"
+          max="100"
+          value="65">
+
+        <span id="beautyValue">65</span>
 
       </div>
 
-      <input
-        id="beautyRange"
-        type="range"
-        min="0"
-        max="100"
-        value="65"
-      >
+      <div class="small">
+        即時柔化臉部，錄影與拍照會一起套用。
+      </div>
 
     </div>
 
 
-    <!-- 控制 -->
+    <h2>🎬 9 部影片</h2>
+
+    <div id="videoTests"></div>
+
+    <video
+      id="testVideo"
+      controls
+      muted
+      playsinline
+      webkit-playsinline
+      preload="metadata">
+    </video>
+
+
+    <h2>🎥 錄影與儲存</h2>
 
     <div id="controls">
 
-      <button
-        id="beautyBtn"
-        class="controlBtn"
-        aria-label="美膚">
-        ✨
+      <button id="recordBtn">
+        🔴 開始錄影
       </button>
 
-
-      <button
-        id="recordBtn"
-        class="controlBtn"
-        aria-label="錄影">
-        ●
+      <button id="saveVideoBtn">
+        💾 儲存影片
       </button>
 
-
-      <button
-        id="snapshotBtn"
-        class="controlBtn"
-        aria-label="拍照">
-        📸
+      <button id="snapshotBtn">
+        📸 儲存照片
       </button>
 
-
-      <button
-        id="cameraSwitchBtn"
-        class="controlBtn"
-        aria-label="切換鏡頭">
-        🔄
+      <button id="cameraSwitchBtn">
+        🔄 切換鏡頭
       </button>
 
     </div>
-
-
-    <!-- 錄影預覽 -->
 
     <video
       id="recordPreview"
@@ -681,12 +517,40 @@ body{
     </video>
 
 
-    <!-- 儲存提示 -->
+    <h2>🧠 AR 即時狀態</h2>
 
-    <div id="saveNotice">
-      ✓ 影片已準備完成
+    <div id="arState" class="status">
+
+      <div class="title">
+        目前狀態：
+        <span id="stateText" class="info">
+          等待
+        </span>
+      </div>
+
+      <div class="small">
+        嘴巴：
+        <span id="mouthText">未偵測</span>
+        　
+        手掌：
+        <span id="handText">未偵測</span>
+      </div>
+
+      <div class="small">
+        目前影片：
+        <span id="currentVideoText">無</span>
+      </div>
+
     </div>
 
+
+    <h2>📋 診斷紀錄</h2>
+
+    <div id="log"></div>
+
+    <div id="hint">
+      一般狀態會自動依序播放；張嘴或張開手掌時會觸發對應互動影片。
+    </div>
 
   </div>
 
@@ -699,39 +563,28 @@ body{
 
 
 /* =====================================================
-   影片設定
+   影片分類
 ===================================================== */
 
 const VIDEO_GROUPS = {
 
-  /*
-    一般狀態
-  */
-
-  normal:[
+  /* 一般狀態：依序播放 */
+  normal: [
     'spider_cat_animation.mp4',
     'champion_cat_animation.mp4',
     'magic_cat_animation.mp4',
     'sleep_cat_animation.mp4'
   ],
 
-
-  /*
-    張開嘴巴
-  */
-
-  mouthOpen:[
+  /* 張開嘴巴 */
+  mouthOpen: [
     'chef_cat_animation.mp4',
     'eat_cat_animation.mp4',
     'drink_cat_animation.mp4'
   ],
 
-
-  /*
-    張開手掌
-  */
-
-  handOpen:[
+  /* 張開手掌 */
+  handOpen: [
     'cry_cat_animation.mp4.mp4',
     'work_cat_animation.mp4'
   ]
@@ -739,12 +592,17 @@ const VIDEO_GROUPS = {
 };
 
 
-/* =====================================================
-   DOM
-===================================================== */
+const ALL_VIDEOS = [
+  ...new Set([
+    ...VIDEO_GROUPS.normal,
+    ...VIDEO_GROUPS.mouthOpen,
+    ...VIDEO_GROUPS.handOpen
+  ])
+];
 
-const $ =
-  id => document.getElementById(id);
+
+const $ = id =>
+  document.getElementById(id);
 
 
 const video =
@@ -756,46 +614,21 @@ const canvas =
 
 
 const ctx =
-  canvas.getContext(
-    '2d',
-    {
-      willReadFrequently:false
-    }
-  );
+  canvas.getContext('2d', {
+    willReadFrequently:false
+  });
 
 
-/*
-   貓咪影片元素。
-
-   這個元素不直接顯示，
-   只拿來做 AR texture。
-*/
-
-const catVideo =
-  document.createElement('video');
+const testVideo =
+  $('testVideo');
 
 
-catVideo.muted = true;
-
-catVideo.playsInline = true;
-
-catVideo.setAttribute(
-  'playsinline',
-  ''
-);
-
-catVideo.setAttribute(
-  'webkit-playsinline',
-  ''
-);
-
-catVideo.preload = 'auto';
-
-catVideo.loop = false;
+const recordPreview =
+  $('recordPreview');
 
 
 /* =====================================================
-   狀態
+   AR 狀態
 ===================================================== */
 
 let stream = null;
@@ -810,38 +643,57 @@ let handLandmarks = null;
 
 
 /*
-   初始狀態直接設定為 normal。
+  none：
+  尚未建立狀態
 
-   這樣 AR 啟動後，
-   不需要等待「狀態變化」才播放第一支影片。
+  normal：
+  一般狀態
+
+  mouthOpen：
+  張嘴
+
+  handOpen：
+  張手
 */
 
-let currentState = 'normal';
+let currentState = 'none';
+
 
 let currentVideo = '';
 
+
+/*
+  一般影片目前播放到哪一支
+*/
 let normalIndex = 0;
 
 
 /*
-   防止同一時間重複切換影片。
+  MediaPipe 更新時間
 */
-
-let videoChanging = false;
-
-
-/*
-   MediaPipe 處理時間。
-*/
-
 let lastProcess = 0;
 
 
 /*
-   AR frame。
+  防止影片切換互相重疊
 */
+let changingVideo = false;
 
-let animationFrame = null;
+
+/*
+  防止 ended 事件與動作偵測同時切換
+*/
+let videoChangeToken = 0;
+
+
+/*
+  動作穩定判斷
+*/
+let candidateState = 'normal';
+
+let candidateCount = 0;
+
+const STATE_CONFIRM_FRAMES = 3;
 
 
 /* =====================================================
@@ -852,24 +704,16 @@ let recording = false;
 
 let recorder = null;
 
-let recordChunks = [];
+let chunks = [];
 
 let recordedBlob = null;
 
 let recordedUrl = null;
 
-
-/*
-   錄影使用另一張 Canvas。
-
-   內容就是使用者看到的完整 AR。
-*/
-
-const recordCanvas =
+let recordCanvas =
   document.createElement('canvas');
 
-
-const recordCtx =
+let recordCtx =
   recordCanvas.getContext('2d');
 
 
@@ -881,42 +725,148 @@ let beautyStrength = 65;
 
 
 /* =====================================================
-   UI
+   Log
 ===================================================== */
 
-function showStatus(text){
+function log(msg){
+
+  const time =
+    new Date().toLocaleTimeString();
+
+  $('log').textContent +=
+    `[${time}] ${msg}\n`;
+
+  $('log').scrollTop =
+    $('log').scrollHeight;
+
+  console.log(msg);
+
+}
+
+
+function setStatus(id,text,cls='info'){
 
   const el =
-    $('topStatus');
+    $(id);
 
   el.textContent =
     text;
 
-  el.classList.add('show');
+  el.className =
+    cls;
+
+}
 
 
-  clearTimeout(
-    showStatus.timer
-  );
+function overall(text,cls='info'){
 
+  $('overall').textContent =
+    text;
 
-  showStatus.timer =
-    setTimeout(
-      () => {
-
-        el.classList.remove(
-          'show'
-        );
-
-      },
-      1800
-    );
+  $('overall').className =
+    cls;
 
 }
 
 
 /* =====================================================
-   MediaPipe FaceMesh
+   互動說明
+===================================================== */
+
+function updateInteractionGuide(state){
+
+  const guide =
+    $('interactionGuide');
+
+  const title =
+    $('guideTitle');
+
+  const text =
+    $('guideText');
+
+
+  if(state === 'mouthOpen'){
+
+    title.textContent =
+      '👄 嘴巴互動';
+
+    text.textContent =
+      '偵測到張開嘴巴！貓咪正在回應你。';
+
+    guide.classList.add('active');
+
+  }
+
+  else if(state === 'handOpen'){
+
+    title.textContent =
+      '✋ 手掌互動';
+
+    text.textContent =
+      '偵測到張開手掌！貓咪正在回應你。';
+
+    guide.classList.add('active');
+
+  }
+
+  else{
+
+    title.textContent =
+      '🐱 AR 貓咪互動';
+
+    text.textContent =
+      '👄 張開嘴巴　・　✋ 張開手掌';
+
+    guide.classList.remove('active');
+
+  }
+
+}
+
+
+/* =====================================================
+   HTTPS
+===================================================== */
+
+function diagnoseEnvironment(){
+
+  const localhost =
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1';
+
+
+  const secure =
+    window.isSecureContext ||
+    localhost;
+
+
+  if(secure){
+
+    setStatus(
+      'secureStatus',
+      '✅ HTTPS / 安全來源',
+      'ok'
+    );
+
+    log('HTTPS OK');
+
+  }
+
+  else{
+
+    setStatus(
+      'secureStatus',
+      '❌ 需要 HTTPS',
+      'bad'
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   FaceMesh
 ===================================================== */
 
 const faceMesh =
@@ -941,19 +891,38 @@ faceMesh.setOptions({
 });
 
 
-faceMesh.onResults(
-  results => {
+faceMesh.onResults(results => {
 
-    faceLandmarks =
-      results.multiFaceLandmarks?.[0]
-      || null;
+  faceLandmarks =
+    results.multiFaceLandmarks?.[0] ||
+    null;
+
+
+  if(faceLandmarks){
+
+    setStatus(
+      'faceStatus',
+      '✅ 偵測到人臉',
+      'ok'
+    );
 
   }
-);
+
+  else{
+
+    setStatus(
+      'faceStatus',
+      '⚪ 等待人臉',
+      'wait'
+    );
+
+  }
+
+});
 
 
 /* =====================================================
-   MediaPipe Hands
+   Hands
 ===================================================== */
 
 const hands =
@@ -978,54 +947,58 @@ hands.setOptions({
 });
 
 
-hands.onResults(
-  results => {
+hands.onResults(results => {
 
-    handLandmarks =
-      results.multiHandLandmarks?.[0]
-      || null;
+  handLandmarks =
+    results.multiHandLandmarks?.[0] ||
+    null;
+
+
+  if(handLandmarks){
+
+    setStatus(
+      'handStatus',
+      '✅ 偵測到手',
+      'ok'
+    );
 
   }
-);
+
+  else{
+
+    setStatus(
+      'handStatus',
+      '⚪ 未偵測到手',
+      'wait'
+    );
+
+  }
+
+});
 
 
 /* =====================================================
-   相機
+   Camera
 ===================================================== */
 
 async function startCamera(){
 
-  if(
-    !navigator.mediaDevices ||
-    !navigator.mediaDevices.getUserMedia
-  ){
+  if(!navigator.mediaDevices?.getUserMedia){
 
     throw new Error(
-      '此瀏覽器不支援相機'
+      'getUserMedia 不支援'
     );
 
   }
 
 
-  /*
-     關閉舊鏡頭
-  */
-
   if(stream){
 
-    stream
-      .getTracks()
-      .forEach(
-        track =>
-          track.stop()
-      );
+    stream.getTracks()
+      .forEach(t => t.stop());
 
   }
 
-
-  /*
-     開啟相機
-  */
 
   stream =
     await navigator.mediaDevices.getUserMedia({
@@ -1034,9 +1007,7 @@ async function startCamera(){
 
       video:{
 
-        facingMode:{
-          ideal:facingMode
-        },
+        facingMode:facingMode,
 
         width:{
           ideal:1280
@@ -1063,35 +1034,20 @@ async function startCamera(){
   await video.play();
 
 
-  await new Promise(
-    resolve => {
+  resizeCanvas();
 
-      if(video.readyState >= 2){
 
-        resolve();
-
-      }else{
-
-        video.addEventListener(
-          'loadeddata',
-          resolve,
-          {once:true}
-        );
-
-      }
-
-    }
+  setStatus(
+    'cameraStatus',
+    '✅ 相機已開啟',
+    'ok'
   );
 
 
-  resizeCanvas();
+  log('相機啟動成功');
 
 }
 
-
-/* =====================================================
-   切換鏡頭
-===================================================== */
 
 async function switchCamera(){
 
@@ -1109,28 +1065,13 @@ async function switchCamera(){
 
     await startCamera();
 
+  }
 
-    showStatus(
-      facingMode === 'user'
-        ? '🤳 前鏡頭'
-        : '📷 後鏡頭'
+  catch(e){
+
+    log(
+      `❌ 切換鏡頭失敗：${e.message}`
     );
-
-
-  }catch(error){
-
-    /*
-       如果切換失敗，
-       回復原來鏡頭。
-    */
-
-    facingMode =
-      facingMode === 'user'
-        ? 'environment'
-        : 'user';
-
-
-    await startCamera();
 
   }
 
@@ -1138,36 +1079,43 @@ async function switchCamera(){
 
 
 /* =====================================================
-   Canvas 尺寸
+   Canvas
 ===================================================== */
 
 function resizeCanvas(){
 
-  const width =
-    video.videoWidth || 1280;
+  const w =
+    video.videoWidth || 640;
 
 
-  const height =
-    video.videoHeight || 720;
+  const h =
+    video.videoHeight || 480;
 
 
   if(
-    canvas.width !== width ||
-    canvas.height !== height
+    canvas.width !== w ||
+    canvas.height !== h
   ){
 
     canvas.width =
-      width;
+      w;
 
     canvas.height =
-      height;
+      h;
 
 
     recordCanvas.width =
-      width;
+      w;
 
     recordCanvas.height =
-      height;
+      h;
+
+
+    setStatus(
+      'canvasStatus',
+      `✅ ${w}×${h}`,
+      'ok'
+    );
 
   }
 
@@ -1192,18 +1140,11 @@ function mouthOpen(){
     faceLandmarks[14];
 
 
-  if(!upper || !lower)
-    return false;
-
-
-  const distance =
-    Math.abs(
-      lower.y -
-      upper.y
-    );
-
-
-  return distance > .045;
+  return !!upper &&
+         !!lower &&
+         Math.abs(
+           lower.y - upper.y
+         ) > .045;
 
 }
 
@@ -1235,49 +1176,30 @@ function handOpen(){
   ];
 
 
-  return (
-    fingers.filter(Boolean)
-      .length >= 3
-  );
+  return fingers.filter(Boolean).length >= 3;
 
 }
 
 
 /* =====================================================
-   狀態
+   原始狀態
 ===================================================== */
 
-function detectState(){
+function detectRawState(){
 
   /*
-     嘴巴優先。
+    優先判斷嘴巴。
+    如果同時張嘴＋張手，
+    先觸發嘴巴互動。
   */
 
-  if(
-    mouthOpen()
-  ){
-
+  if(mouthOpen())
     return 'mouthOpen';
 
-  }
 
-
-  /*
-     再判斷手掌。
-  */
-
-  if(
-    handOpen()
-  ){
-
+  if(handOpen())
     return 'handOpen';
 
-  }
-
-
-  /*
-     都沒有就是一般。
-  */
 
   return 'normal';
 
@@ -1285,33 +1207,56 @@ function detectState(){
 
 
 /* =====================================================
-   影片選擇
+   穩定狀態
 ===================================================== */
 
-function getNextNormalVideo(){
+function getStableState(rawState){
 
-  const list =
-    VIDEO_GROUPS.normal;
+  if(rawState !== candidateState){
+
+    candidateState =
+      rawState;
+
+    candidateCount =
+      1;
+
+    return currentState === 'none'
+      ? rawState
+      : currentState;
+
+  }
 
 
-  /*
-     一般狀態循環播放：
+  candidateCount++;
 
-     spider
-     champion
-     magic
-     sleep
 
-     但是只有狀態「進入 normal」
-     時才會換。
+  if(
+    candidateCount >=
+    STATE_CONFIRM_FRAMES
+  ){
 
-     不會因為影片播放完就自動換。
-  */
+    return rawState;
+
+  }
+
+
+  return currentState === 'none'
+    ? rawState
+    : currentState;
+
+}
+
+
+/* =====================================================
+   一般影片
+===================================================== */
+
+function nextNormalVideo(){
 
   const name =
-    list[
+    VIDEO_GROUPS.normal[
       normalIndex %
-      list.length
+      VIDEO_GROUPS.normal.length
     ];
 
 
@@ -1323,58 +1268,71 @@ function getNextNormalVideo(){
 }
 
 
-/* =====================================================
-   動作影片選擇
-===================================================== */
+/*
+  啟動時固定第一支 spider。
+*/
+function startNormalSequence(){
 
-function getActionVideo(state){
+  normalIndex = 0;
 
-  const list =
-    VIDEO_GROUPS[state];
+  return nextNormalVideo();
+
+}
 
 
-  if(
-    !list ||
-    !list.length
-  ){
+/*
+  一般影片播放完：
 
-    return null;
-
-  }
-
+  spider
+    ↓
+  champion
+    ↓
+  magic
+    ↓
+  sleep
+    ↓
+  spider
+*/
+async function playNextNormal(){
 
   /*
-     動作影片隨機選擇。
-
-     避免連續兩次選到完全相同的影片。
+    如果現在正在做動作，
+    不要自動搶走動作影片。
   */
 
-  let index =
-    Math.floor(
-      Math.random() *
-      list.length
-    );
+  if(currentState !== 'normal')
+    return;
 
 
-  if(
-    list.length > 1 &&
-    list[index] === currentVideo
-  ){
-
-    index =
-      (index + 1) %
-      list.length;
-
-  }
+  const next =
+    nextNormalVideo();
 
 
-  return list[index];
+  await playCat(
+    next
+  );
 
 }
 
 
 /* =====================================================
-   播放貓咪
+   動作影片
+===================================================== */
+
+function randomFrom(list){
+
+  return list[
+    Math.floor(
+      Math.random() *
+      list.length
+    )
+  ];
+
+}
+
+
+/* =====================================================
+   播放影片
 ===================================================== */
 
 async function playCat(name){
@@ -1384,91 +1342,114 @@ async function playCat(name){
 
 
   /*
-     同一支影片正在播放，
-     不重新載入。
+    避免多個 async 同時切換。
   */
 
-  if(
-    currentVideo === name &&
-    !catVideo.paused
-  ){
+  while(changingVideo){
 
-    return;
+    await new Promise(
+      resolve =>
+        setTimeout(resolve,30)
+    );
 
   }
 
 
-  /*
-     防止多次 MediaPipe frame
-     同時要求切換影片。
-  */
-
-  if(videoChanging)
-    return;
+  changingVideo = true;
 
 
-  videoChanging = true;
+  const token =
+    ++videoChangeToken;
 
 
   try{
 
     /*
-       停止舊影片。
-    */
-
-    catVideo.pause();
-
-
-    /*
-       回到影片第一幀。
+      停止上一支
     */
 
     try{
 
-      catVideo.currentTime = 0;
+      testVideo.pause();
 
-    }catch(e){}
+      testVideo.currentTime =
+        0;
 
+    }
 
-    /*
-       設定新影片。
-    */
+    catch(e){}
+
 
     currentVideo =
       name;
 
 
-    catVideo.src =
-      `./${name}`;
+    $('currentVideoText').textContent =
+      name;
 
 
-    catVideo.load();
+    setStatus(
+      'catStatus',
+      `⏳ ${name}`,
+      'wait'
+    );
+
+
+    log(
+      `🐱 播放：${name}`
+    );
 
 
     /*
-       等待影片可播放。
+      清除舊 source
     */
+
+    testVideo.src =
+      '';
+
+    testVideo.removeAttribute(
+      'src'
+    );
+
+    testVideo.load();
+
+
+    await new Promise(
+      resolve =>
+        setTimeout(
+          resolve,
+          30
+        )
+    );
+
+
+    /*
+      新影片
+    */
+
+    testVideo.src =
+      `./${name}`;
+
+
+    testVideo.load();
+
 
     await new Promise(
       (resolve,reject) => {
 
-        let finished = false;
+        let finished =
+          false;
 
 
         const cleanup =
           () => {
 
-            catVideo.removeEventListener(
+            testVideo.removeEventListener(
               'loadeddata',
-              onLoaded
+              onLoad
             );
 
-            catVideo.removeEventListener(
-              'canplay',
-              onLoaded
-            );
-
-            catVideo.removeEventListener(
+            testVideo.removeEventListener(
               'error',
               onError
             );
@@ -1476,11 +1457,12 @@ async function playCat(name){
           };
 
 
-        const onLoaded =
+        const onLoad =
           () => {
 
             if(finished)
               return;
+
 
             finished = true;
 
@@ -1497,55 +1479,29 @@ async function playCat(name){
             if(finished)
               return;
 
+
             finished = true;
 
             cleanup();
 
             reject(
               new Error(
-                `影片無法載入：${name}`
+                '影片載入失敗'
               )
             );
 
           };
 
 
-        catVideo.addEventListener(
+        testVideo.addEventListener(
           'loadeddata',
-          onLoaded
+          onLoad
         );
 
 
-        catVideo.addEventListener(
-          'canplay',
-          onLoaded
-        );
-
-
-        catVideo.addEventListener(
+        testVideo.addEventListener(
           'error',
           onError
-        );
-
-
-        /*
-           避免載入異常永久等待。
-        */
-
-        setTimeout(
-          () => {
-
-            if(finished)
-              return;
-
-            finished = true;
-
-            cleanup();
-
-            resolve();
-
-          },
-          5000
         );
 
       }
@@ -1553,40 +1509,61 @@ async function playCat(name){
 
 
     /*
-       每次切換都從第 0 秒。
+      如果在等待載入期間，
+      又有新的影片切換，
+      不要播放這一支。
     */
+
+    if(token !== videoChangeToken)
+      return;
+
+
+    testVideo.currentTime =
+      0;
+
+
+    setStatus(
+      'catStatus',
+      `✅ ${name}`,
+      'ok'
+    );
+
 
     try{
 
-      catVideo.currentTime = 0;
-
-    }catch(e){}
-
-
-    /*
-       播放。
-
-       因為 AR 已經由使用者點擊開始，
-       通常可以正常 autoplay。
-    */
-
-    try{
-
-      await catVideo.play();
-
-    }catch(e){
-
-      /*
-         如果手機瀏覽器拒絕，
-         下一次使用者互動仍可重新播放。
-      */
+      await testVideo.play();
 
     }
 
+    catch(e){
 
-  }finally{
+      log(
+        `⚠️ 播放需要使用者操作：${e.name}`
+      );
 
-    videoChanging = false;
+    }
+
+  }
+
+  catch(e){
+
+    log(
+      `❌ 影片載入失敗：${name} / ${e.message}`
+    );
+
+
+    setStatus(
+      'catStatus',
+      `❌ ${name}`,
+      'bad'
+    );
+
+  }
+
+  finally{
+
+    changingVideo =
+      false;
 
   }
 
@@ -1594,7 +1571,97 @@ async function playCat(name){
 
 
 /* =====================================================
-   Face Box
+   狀態 → 影片
+===================================================== */
+
+async function changeARVideo(state){
+
+  if(
+    state === currentState &&
+    currentVideo
+  ){
+
+    return;
+
+  }
+
+
+  currentState =
+    state;
+
+
+  updateInteractionGuide(
+    state
+  );
+
+
+  let name;
+
+
+  /*
+    張嘴
+  */
+
+  if(state === 'mouthOpen'){
+
+    name =
+      randomFrom(
+        VIDEO_GROUPS.mouthOpen
+      );
+
+  }
+
+
+  /*
+    張開手掌
+  */
+
+  else if(state === 'handOpen'){
+
+    name =
+      randomFrom(
+        VIDEO_GROUPS.handOpen
+      );
+
+  }
+
+
+  /*
+    一般狀態
+  */
+
+  else{
+
+    /*
+      如果已經有影片正在播放，
+      不因為狀態變成 normal 就立刻重播。
+    */
+
+    if(
+      currentVideo &&
+      !testVideo.ended
+    ){
+
+      return;
+
+    }
+
+
+    name =
+      nextNormalVideo();
+
+  }
+
+
+  await playCat(
+    name
+  );
+
+}
+
+
+/* =====================================================
+   臉部範圍
 ===================================================== */
 
 function getFaceBox(){
@@ -1613,106 +1680,64 @@ function getFaceBox(){
 
 
   for(
-    const point
-    of faceLandmarks
+    const p of faceLandmarks
   ){
 
     minX =
       Math.min(
         minX,
-        point.x
+        p.x
       );
 
 
     maxX =
       Math.max(
         maxX,
-        point.x
+        p.x
       );
 
 
     minY =
       Math.min(
         minY,
-        point.y
+        p.y
       );
 
 
     maxY =
       Math.max(
         maxY,
-        point.y
+        p.y
       );
 
   }
 
 
-  const centerX =
-    (minX + maxX) / 2;
-
-
-  /*
-     非常重要：
-
-     MediaPipe 座標是原始相機方向。
-
-     前鏡頭顯示給使用者時會水平鏡像，
-     所以 X 必須轉換：
-
-        mirroredX = 1 - originalX
-
-     這就是修正左右相反的核心。
-  */
-
-  const mirroredCenterX =
-    facingMode === 'user'
-      ? 1 - centerX
-      : centerX;
-
-
-  const mirroredMinX =
-    facingMode === 'user'
-      ? 1 - maxX
-      : minX;
-
-
-  const mirroredMaxX =
-    facingMode === 'user'
-      ? 1 - minX
-      : maxX;
-
-
-  const width =
-    Math.abs(
-      mirroredMaxX -
-      mirroredMinX
-    ) *
-    canvas.width;
-
-
   return {
 
-    minX:
-      mirroredMinX *
+    minX,
+
+    maxX,
+
+    minY,
+
+    maxY,
+
+    width:
+      (maxX-minX) *
       canvas.width,
 
-    maxX:
-      mirroredMaxX *
-      canvas.width,
-
-    minY:
-      minY *
+    height:
+      (maxY-minY) *
       canvas.height,
-
-    maxY:
-      maxY *
-      canvas.height,
-
-    width,
 
     centerX:
-      mirroredCenterX *
+      ((minX+maxX)/2) *
       canvas.width,
+
+    centerY:
+      ((minY+maxY)/2) *
+      canvas.height,
 
     topY:
       minY *
@@ -1747,133 +1772,95 @@ function drawBeauty(){
     return;
 
 
-  const paddingX =
-    box.width *
-    .18;
+  const padX =
+    box.width * .18;
 
 
-  const paddingY =
-    box.width *
-    .22;
+  const padY =
+    box.height * .22;
 
 
   const x =
     Math.max(
       0,
-      box.minX -
-      paddingX
+      box.minX *
+      canvas.width -
+      padX
     );
 
 
   const y =
     Math.max(
       0,
-      box.minY -
-      paddingY
+      box.minY *
+      canvas.height -
+      padY
     );
 
 
-  const right =
+  const w =
     Math.min(
-      canvas.width,
-      box.maxX +
-      paddingX
+      canvas.width-x,
+      box.width +
+      padX*2
     );
 
 
-  const bottom =
+  const h =
     Math.min(
-      canvas.height,
-      box.maxY +
-      paddingY
+      canvas.height-y,
+      box.height +
+      padY*2
     );
 
-
-  const width =
-    right - x;
-
-
-  const height =
-    bottom - y;
-
-
-  if(
-    width <= 0 ||
-    height <= 0
-  ){
-
-    return;
-
-  }
-
-
-  /*
-     第一層柔化。
-  */
 
   ctx.save();
 
 
   ctx.globalAlpha =
-    .10 +
-    beautyStrength /
-    100 *
-    .25;
+    .12 +
+    (beautyStrength / 100) * .30;
 
 
   ctx.filter =
-    `blur(${
-      1.5 +
-      beautyStrength *
-      .035
-    }px)`;
+    `blur(${2 + beautyStrength * .045}px)`;
 
 
   ctx.drawImage(
     canvas,
-
     x,
     y,
-    width,
-    height,
-
+    w,
+    h,
     x,
     y,
-    width,
-    height
+    w,
+    h
   );
 
 
-  /*
-     第二層。
-  */
+  ctx.filter =
+    'none';
+
 
   ctx.globalAlpha =
-    beautyStrength /
-    100 *
-    .12;
+    (beautyStrength / 100) * .16;
 
 
   ctx.filter =
-    `blur(${
-      1 +
-      beautyStrength *
-      .02
-    }px)`;
+    `blur(${1 + beautyStrength * .025}px)`;
 
 
   ctx.drawImage(
     canvas,
-
     x,
     y,
-    width,
-    height,
-
+    w,
+    h,
     x,
     y,
-    width,
-    height
+    w,
+    h
   );
 
 
@@ -1883,23 +1870,15 @@ function drawBeauty(){
 
 
 /* =====================================================
-   貓咪定位
+   貓咪 AR
 ===================================================== */
 
 function drawCat(){
 
   if(
-    !faceLandmarks
-  ){
-
-    return;
-
-  }
-
-
-  if(
-    catVideo.readyState <
-    HTMLMediaElement.HAVE_CURRENT_DATA
+    !faceLandmarks ||
+    testVideo.readyState <
+      HTMLMediaElement.HAVE_CURRENT_DATA
   ){
 
     return;
@@ -1916,58 +1895,87 @@ function drawCat(){
 
 
   /*
-     貓咪大小。
+    ================================
+    貓咪尺寸調整
+    ================================
 
-     目前維持在頭頂，
-     不覆蓋臉部。
+    原本：
+      box.width * .62
+
+    現在放大：
+      0.78 倍臉寬
+
+    同時使用較直立的比例。
   */
 
-  const size =
-    box.width *
-    .62;
+  const catWidth =
+    box.width * .78;
 
 
   /*
-     X 使用「已鏡像」的 face center。
+    直立比例。
+    如果影片本身有實際尺寸，
+    優先依影片原始比例。
+  */
 
-     所以人物往左，
-     貓咪也跟著往左。
+  const videoW =
+    testVideo.videoWidth ||
+    1;
+
+
+  const videoH =
+    testVideo.videoHeight ||
+    1;
+
+
+  const aspect =
+    videoH / videoW;
+
+
+  const catHeight =
+    catWidth *
+    Math.max(
+      1.05,
+      Math.min(
+        1.45,
+        aspect
+      )
+    );
+
+
+  /*
+    X：臉部中央
   */
 
   const x =
     box.centerX -
-    size / 2;
+    catWidth / 2;
 
 
   /*
-     貓咪位於頭頂。
+    Y：頭頂上方。
+
+    數值降低代表影片更靠近頭頂。
   */
 
   const y =
     box.topY -
-    size *
-    .78;
+    catHeight * .78;
 
 
   ctx.save();
 
 
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha =
+    1;
 
-
-  /*
-     貓咪影片本身不要再鏡像。
-
-     因為 Canvas 已經依照鏡頭方向
-     完成正確畫面。
-  */
 
   ctx.drawImage(
-    catVideo,
+    testVideo,
     x,
     y,
-    size,
-    size
+    catWidth,
+    catHeight
   );
 
 
@@ -1982,17 +1990,8 @@ function drawCat(){
 
 function drawAR(){
 
-  if(
-    !video.videoWidth ||
-    !video.videoHeight
-  ){
-
+  if(!video.videoWidth)
     return;
-
-  }
-
-
-  resizeCanvas();
 
 
   ctx.clearRect(
@@ -2004,250 +2003,55 @@ function drawAR(){
 
 
   /*
-     ==================================================
-     前鏡頭
-     ==================================================
-
-     使用者習慣自拍時：
-
-       左手 → 畫面左邊
-       右手 → 畫面右邊
-
-     所以畫面要鏡像一次。
+    鏡像相機
   */
 
-  if(
-    facingMode === 'user'
-  ){
-
-    ctx.save();
+  ctx.save();
 
 
-    ctx.translate(
-      canvas.width,
-      0
-    );
+  ctx.translate(
+    canvas.width,
+    0
+  );
 
 
-    ctx.scale(
-      -1,
-      1
-    );
+  ctx.scale(
+    -1,
+    1
+  );
 
 
-    ctx.drawImage(
-      video,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
 
-    ctx.restore();
-
-  }
+  ctx.restore();
 
 
   /*
-     ==================================================
-     後鏡頭
-     ==================================================
-
-     後鏡頭維持原始方向。
-  */
-
-  else{
-
-    ctx.drawImage(
-      video,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-  }
-
-
-  /*
-     美膚
+    美膚
   */
 
   drawBeauty();
 
 
   /*
-     貓咪
+    貓咪
   */
 
   drawCat();
 
-}
 
-
-/* =====================================================
-   AR 狀態切換
-===================================================== */
-
-async function updateARState(){
-
-  if(
-    !faceLandmarks
-  ){
-
-    return;
-
-  }
-
-
-  const state =
-    detectState();
-
-
-  /*
-     狀態沒有變化：
-
-     不換影片。
-
-     這非常重要。
-  */
-
-  if(
-    state === currentState
-  ){
-
-    return;
-
-  }
-
-
-  currentState =
-    state;
-
-
-  let nextVideo = null;
-
-
-  /*
-     張嘴
-  */
-
-  if(
-    state === 'mouthOpen'
-  ){
-
-    nextVideo =
-      getActionVideo(
-        'mouthOpen'
-      );
-
-  }
-
-
-  /*
-     張開手掌
-  */
-
-  else if(
-    state === 'handOpen'
-  ){
-
-    nextVideo =
-      getActionVideo(
-        'handOpen'
-      );
-
-  }
-
-
-  /*
-     回到一般
-  */
-
-  else{
-
-    nextVideo =
-      getNextNormalVideo();
-
-  }
-
-
-  if(nextVideo){
-
-    await playCat(
-      nextVideo
-    );
-
-  }
-
-}
-
-
-/* =====================================================
-   AR Loop
-===================================================== */
-
-async function arLoop(timestamp){
-
-  if(!arStarted)
-    return;
-
-
-  /*
-     先畫面。
-
-     這樣畫面一直維持流暢。
-  */
-
-  drawAR();
-
-
-  /*
-     動作辨識。
-
-     不需要每一幀都跑，
-     降低手機負載。
-  */
-
-  if(
-    timestamp -
-    lastProcess >= 70
-  ){
-
-    lastProcess =
-      timestamp;
-
-
-    try{
-
-      await faceMesh.send({
-        image:video
-      });
-
-
-      await hands.send({
-        image:video
-      });
-
-
-      await updateARState();
-
-    }catch(error){
-
-      /*
-         正式版不顯示診斷訊息。
-      */
-
-    }
-
-  }
-
-
-  animationFrame =
-    requestAnimationFrame(
-      arLoop
-    );
+  setStatus(
+    'canvasStatus',
+    '✅ AR 正在運作',
+    'ok'
+  );
 
 }
 
@@ -2258,24 +2062,26 @@ async function arLoop(timestamp){
 
 function updateRecordCanvas(){
 
-  const width =
-    canvas.width;
+  const w =
+    video.videoWidth ||
+    640;
 
 
-  const height =
-    canvas.height;
+  const h =
+    video.videoHeight ||
+    480;
 
 
   if(
-    recordCanvas.width !== width ||
-    recordCanvas.height !== height
+    recordCanvas.width !== w ||
+    recordCanvas.height !== h
   ){
 
     recordCanvas.width =
-      width;
+      w;
 
     recordCanvas.height =
-      height;
+      h;
 
   }
 
@@ -2283,21 +2089,17 @@ function updateRecordCanvas(){
   recordCtx.clearRect(
     0,
     0,
-    width,
-    height
+    w,
+    h
   );
 
-
-  /*
-     直接錄製使用者看到的完整 AR。
-  */
 
   recordCtx.drawImage(
     canvas,
     0,
     0,
-    width,
-    height
+    w,
+    h
   );
 
 }
@@ -2324,18 +2126,13 @@ function recordFrame(){
 
 
 /* =====================================================
-   MediaRecorder 格式
+   MediaRecorder
 ===================================================== */
 
 function supportedMime(){
 
-  if(
-    !window.MediaRecorder
-  ){
-
+  if(!window.MediaRecorder)
     return '';
-
-  }
 
 
   const types = [
@@ -2364,28 +2161,26 @@ function supportedMime(){
 
 
 /* =====================================================
-   開始 / 停止錄影
+   錄影
 ===================================================== */
 
 $('recordBtn').onclick =
   () => {
 
-    if(!arStarted)
+    if(!arStarted){
+
+      log(
+        '請先啟動 AR'
+      );
+
       return;
 
+    }
 
-    /*
-       如果正在錄影，
-       再按一次停止。
-    */
 
     if(recording){
 
-      if(recorder){
-
-        recorder.stop();
-
-      }
+      recorder.stop();
 
       return;
 
@@ -2397,16 +2192,13 @@ $('recordBtn').onclick =
       !window.MediaRecorder
     ){
 
-      showStatus(
-        '此裝置不支援錄影'
+      log(
+        '❌ 此瀏覽器不支援錄影'
       );
 
       return;
 
     }
-
-
-    updateRecordCanvas();
 
 
     const capture =
@@ -2433,10 +2225,12 @@ $('recordBtn').onclick =
               capture
             );
 
-    }catch(error){
+    }
 
-      showStatus(
-        '錄影無法啟動'
+    catch(e){
+
+      log(
+        `❌ MediaRecorder 建立失敗：${e.message}`
       );
 
       return;
@@ -2444,19 +2238,16 @@ $('recordBtn').onclick =
     }
 
 
-    recordChunks = [];
+    chunks = [];
 
 
     recorder.ondataavailable =
-      event => {
+      e => {
 
-        if(
-          event.data &&
-          event.data.size
-        ){
+        if(e.data?.size){
 
-          recordChunks.push(
-            event.data
+          chunks.push(
+            e.data
           );
 
         }
@@ -2475,7 +2266,7 @@ $('recordBtn').onclick =
 
         recordedBlob =
           new Blob(
-            recordChunks,
+            chunks,
             {
               type
             }
@@ -2497,37 +2288,37 @@ $('recordBtn').onclick =
           );
 
 
-        $('recordPreview').src =
+        recordPreview.src =
           recordedUrl;
 
 
-        recording = false;
+        recordPreview.style.display =
+          'block';
+
+
+        $('saveVideoBtn')
+          .classList.add(
+            'show'
+          );
+
+
+        recording =
+          false;
+
+
+        $('recordBtn').textContent =
+          '🔴 開始錄影';
 
 
         $('recordBtn')
-          .classList
-          .remove(
+          .classList.remove(
             'recording'
           );
 
 
-        $('recordBtn')
-          .textContent =
-          '●';
-
-
-        showStatus(
-          '✓ 錄影完成'
+        log(
+          `✅ 錄影完成：${type}`
         );
-
-
-        /*
-           完成後直接儲存。
-
-           不需要顯示測試畫面。
-        */
-
-        saveRecordedVideo();
 
       };
 
@@ -2537,95 +2328,110 @@ $('recordBtn').onclick =
     );
 
 
-    recording = true;
+    recording =
+      true;
+
+
+    $('recordBtn').textContent =
+      '⏹ 停止錄影';
 
 
     $('recordBtn')
-      .classList
-      .add(
+      .classList.add(
         'recording'
       );
 
 
-    $('recordBtn')
-      .textContent =
-      '■';
+    $('saveVideoBtn')
+      .classList.remove(
+        'show'
+      );
+
+
+    log(
+      `🔴 開始錄影：${mime || '瀏覽器格式'}`
+    );
 
 
     recordFrame();
-
-
-    showStatus(
-      '🔴 錄影中'
-    );
 
   };
 
 
 /* =====================================================
-   儲存錄影
+   儲存影片
 ===================================================== */
 
-function saveRecordedVideo(){
+$('saveVideoBtn').onclick =
+  () => {
 
-  if(!recordedBlob)
-    return;
+    if(!recordedBlob){
 
-
-  const type =
-    recordedBlob.type ||
-    'video/webm';
-
-
-  const extension =
-    type.includes('mp4')
-      ? 'mp4'
-      : 'webm';
-
-
-  const url =
-    URL.createObjectURL(
-      recordedBlob
-    );
-
-
-  const link =
-    document.createElement(
-      'a'
-    );
-
-
-  link.href =
-    url;
-
-
-  link.download =
-    `AR_cat_${Date.now()}.${extension}`;
-
-
-  document.body.appendChild(
-    link
-  );
-
-
-  link.click();
-
-
-  link.remove();
-
-
-  setTimeout(
-    () => {
-
-      URL.revokeObjectURL(
-        url
+      log(
+        '目前沒有可儲存的影片'
       );
 
-    },
-    3000
-  );
+      return;
 
-}
+    }
+
+
+    const type =
+      recordedBlob.type ||
+      'video/webm';
+
+
+    const extension =
+      type.includes('mp4')
+        ? 'mp4'
+        : 'webm';
+
+
+    const url =
+      URL.createObjectURL(
+        recordedBlob
+      );
+
+
+    const a =
+      document.createElement(
+        'a'
+      );
+
+
+    a.href =
+      url;
+
+
+    a.download =
+      `AR_cat_${Date.now()}.${extension}`;
+
+
+    document.body.appendChild(
+      a
+    );
+
+
+    a.click();
+
+
+    a.remove();
+
+
+    setTimeout(
+      () =>
+        URL.revokeObjectURL(
+          url
+        ),
+      3000
+    );
+
+
+    log(
+      '💾 影片已送出儲存'
+    );
+
+  };
 
 
 /* =====================================================
@@ -2635,8 +2441,15 @@ function saveRecordedVideo(){
 $('snapshotBtn').onclick =
   () => {
 
-    if(!arStarted)
+    if(!arStarted){
+
+      log(
+        '請先啟動 AR'
+      );
+
       return;
+
+    }
 
 
     updateRecordCanvas();
@@ -2655,44 +2468,41 @@ $('snapshotBtn').onclick =
           );
 
 
-        const link =
+        const a =
           document.createElement(
             'a'
           );
 
 
-        link.href =
+        a.href =
           url;
 
 
-        link.download =
+        a.download =
           `AR_cat_${Date.now()}.jpg`;
 
 
         document.body.appendChild(
-          link
+          a
         );
 
 
-        link.click();
+        a.click();
 
 
-        link.remove();
+        a.remove();
 
 
         setTimeout(
-          () => {
-
+          () =>
             URL.revokeObjectURL(
               url
-            );
-
-          },
+            ),
           2000
         );
 
 
-        showStatus(
+        log(
           '📸 照片已儲存'
         );
 
@@ -2705,126 +2515,439 @@ $('snapshotBtn').onclick =
 
 
 /* =====================================================
-   美膚
+   影片按鈕
 ===================================================== */
 
-$('beautyBtn').onclick =
-  () => {
+function buildVideoTests(){
 
-    $('beautyPanel')
-      .classList
-      .toggle(
-        'show'
+  const box =
+    $('videoTests');
+
+
+  ALL_VIDEOS.forEach(
+    name => {
+
+      const btn =
+        document.createElement(
+          'button'
+        );
+
+
+      btn.className =
+        'videoBtn';
+
+
+      btn.textContent =
+        `▶ ${
+          name
+            .replace(
+              '_animation.mp4',
+              ''
+            )
+            .replace(
+              '.mp4',
+              ''
+            )
+        }`;
+
+
+      btn.onclick =
+        async () => {
+
+          await playCat(
+            name
+          );
+
+
+          btn.classList.add(
+            'ok'
+          );
+
+        };
+
+
+      box.appendChild(
+        btn
       );
 
-  };
+    }
+  );
+
+}
 
 
-$('beautyRange').addEventListener(
-  'input',
-  event => {
+/* =====================================================
+   影片播放完成
+===================================================== */
 
-    beautyStrength =
-      Number(
-        event.target.value
+testVideo.loop =
+  false;
+
+
+testVideo.addEventListener(
+  'ended',
+  async () => {
+
+    const finishedVideo =
+      currentVideo;
+
+
+    log(
+      `⏹ 播放完成：${finishedVideo}`
+    );
+
+
+    /*
+      =================================
+      最重要的自動接續邏輯
+      =================================
+
+      如果是一般狀態：
+      
+      spider → champion
+      champion → magic
+      magic → sleep
+      sleep → spider
+    */
+
+    if(currentState === 'normal'){
+
+      /*
+        確保不是使用者剛剛做了動作。
+      */
+
+      const raw =
+        detectRawState();
+
+
+      if(raw === 'normal'){
+
+        await playNextNormal();
+
+      }
+
+      else{
+
+        /*
+          如果影片剛播放完，
+          同一時間使用者做了動作，
+          交給 AR Loop 處理。
+        */
+
+        currentState =
+          'none';
+
+      }
+
+      return;
+
+    }
+
+
+    /*
+      =================================
+      動作影片播放完
+      =================================
+
+      動作結束後：
+
+      如果使用者已經沒有做動作，
+      自動回到一般影片系列。
+
+      如果還在張嘴 / 張手，
+      暫時停留，不會瘋狂重播。
+    */
+
+    const raw =
+      detectRawState();
+
+
+    if(raw === 'normal'){
+
+      currentState =
+        'normal';
+
+
+      updateInteractionGuide(
+        'normal'
       );
 
 
-    $('beautyValue')
-      .textContent =
-      beautyStrength;
+      await playNextNormal();
+
+    }
+
+    else{
+
+      /*
+        保留目前動作狀態。
+        等使用者回到一般狀態。
+      */
+
+      log(
+        '等待使用者結束互動動作'
+      );
+
+    }
 
   }
 );
 
 
 /* =====================================================
-   啟動 AR
+   AR Loop
+===================================================== */
+
+async function arLoop(ts){
+
+  if(!arStarted)
+    return;
+
+
+  resizeCanvas();
+
+
+  drawAR();
+
+
+  const mouth =
+    mouthOpen();
+
+
+  const hand =
+    handOpen();
+
+
+  $('mouthText').textContent =
+    faceLandmarks
+      ? (
+          mouth
+            ? '👄 張嘴'
+            : '閉嘴'
+        )
+      : '未偵測';
+
+
+  $('handText').textContent =
+    handLandmarks
+      ? (
+          hand
+            ? '✋ 張開手掌'
+            : '手掌未完全張開'
+        )
+      : '未偵測';
+
+
+  /*
+    ================================
+    狀態判斷
+    ================================
+  */
+
+  if(faceLandmarks){
+
+    const rawState =
+      detectRawState();
+
+
+    const state =
+      getStableState(
+        rawState
+      );
+
+
+    $('stateText').textContent =
+
+      state === 'mouthOpen'
+        ? '👄 張嘴'
+
+      : state === 'handOpen'
+        ? '✋ 張開手掌'
+
+      : '😺 一般';
+
+
+    /*
+      狀態真正改變才換影片。
+    */
+
+    if(
+      state !== currentState &&
+      !changingVideo
+    ){
+
+      await changeARVideo(
+        state
+      );
+
+    }
+
+  }
+
+
+  /*
+    MediaPipe
+  */
+
+  if(
+    ts - lastProcess >= 70
+  ){
+
+    lastProcess =
+      ts;
+
+
+    try{
+
+      await faceMesh.send({
+        image:video
+      });
+
+
+      await hands.send({
+        image:video
+      });
+
+    }
+
+    catch(e){
+
+      log(
+        `MediaPipe 錯誤：${e.message}`
+      );
+
+    }
+
+  }
+
+
+  requestAnimationFrame(
+    arLoop
+  );
+
+}
+
+
+/* =====================================================
+   美膚滑桿
+===================================================== */
+
+$('beautyRange')
+  .addEventListener(
+    'input',
+    e => {
+
+      beautyStrength =
+        Number(
+          e.target.value
+        );
+
+
+      $('beautyValue')
+        .textContent =
+        beautyStrength;
+
+    }
+  );
+
+
+/* =====================================================
+   Start
 ===================================================== */
 
 $('startBtn').onclick =
   async () => {
 
-    try{
+    diagnoseEnvironment();
 
-      /*
-         開啟相機。
-      */
+
+    if(
+      !window.isSecureContext &&
+      location.hostname !== 'localhost' &&
+      location.hostname !== '127.0.0.1'
+    ){
+
+      overall(
+        '❌ 請使用 GitHub Pages HTTPS',
+        'bad'
+      );
+
+      return;
+
+    }
+
+
+    try{
 
       await startCamera();
 
 
-      /*
-         AR 開始。
-      */
+      arStarted =
+        true;
 
-      arStarted = true;
-
-
-      /*
-         關閉啟動畫面。
-      */
 
       $('startOverlay')
-        .classList
-        .add(
+        .classList.add(
           'hidden'
         );
 
 
+      overall(
+        '🟢 AR 已啟動',
+        'ok'
+      );
+
+
       /*
-         =================================================
-         非常重要：
+        ================================
+        AR 一進來直接開始
+        ================================
 
-         AR 一開始狀態就是 normal。
-
-         不需要等 MediaPipe 回傳一次狀態
-         才開始播放。
-
-         所以進入 AR 後直接播放第一支。
-         =================================================
+        固定從：
+        spider
+        開始。
       */
 
       currentState =
         'normal';
 
 
-      normalIndex = 1;
+      const firstVideo =
+        startNormalSequence();
 
 
-      await playCat(
-        VIDEO_GROUPS.normal[0]
+      updateInteractionGuide(
+        'normal'
       );
 
 
-      /*
-         開始 AR Loop。
-      */
-
-      if(animationFrame){
-
-        cancelAnimationFrame(
-          animationFrame
-        );
-
-      }
+      await playCat(
+        firstVideo
+      );
 
 
-      animationFrame =
-        requestAnimationFrame(
-          arLoop
-        );
+      requestAnimationFrame(
+        arLoop
+      );
 
 
-    }catch(error){
+      log(
+        '🐱 AR 互動模式啟動完成'
+      );
 
-      /*
-         正式版只顯示簡單提示，
-         不顯示診斷畫面。
-      */
 
-      showStatus(
-        '無法開啟相機，請確認相機權限'
+    }
+
+    catch(e){
+
+      overall(
+        `❌ 啟動失敗：${e.name || e.message}`,
+        'bad'
+      );
+
+
+      log(
+        `❌ 相機啟動失敗：${e.name || e.message}`
       );
 
     }
@@ -2833,10 +2956,11 @@ $('startBtn').onclick =
 
 
 /* =====================================================
-   切換鏡頭
+   鏡頭
 ===================================================== */
 
-$('cameraSwitchBtn').onclick =
+$('cameraSwitchBtn')
+  .onclick =
   switchCamera;
 
 
@@ -2856,7 +2980,7 @@ window.addEventListener(
 
     setTimeout(
       resizeCanvas,
-      300
+      400
     );
 
   }
@@ -2864,62 +2988,31 @@ window.addEventListener(
 
 
 /* =====================================================
-   影片播放結束
+   初始化
 ===================================================== */
 
-catVideo.addEventListener(
-  'ended',
-  () => {
+buildVideoTests();
 
-    /*
-       不自動換下一支。
+diagnoseEnvironment();
 
-       必須等狀態真正改變，
-       才會觸發下一部影片。
-    */
-
-  }
+updateInteractionGuide(
+  'normal'
 );
 
+log(
+  `共 ${ALL_VIDEOS.length} 部貓咪影片`
+);
 
-/* =====================================================
-   頁面離開
-===================================================== */
+log(
+  '一般影片：spider → champion → magic → sleep'
+);
 
-window.addEventListener(
-  'beforeunload',
-  () => {
+log(
+  '嘴巴互動：chef / eat / drink'
+);
 
-    if(stream){
-
-      stream
-        .getTracks()
-        .forEach(
-          track =>
-            track.stop()
-        );
-
-    }
-
-
-    if(animationFrame){
-
-      cancelAnimationFrame(
-        animationFrame
-      );
-
-    }
-
-
-    if(recordedUrl){
-
-      URL.revokeObjectURL(
-        recordedUrl
-      );
-
-    }
-
-  }
+log(
+  '手掌互動：cry / work'
 );
 
 </script>
