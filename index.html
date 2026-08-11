@@ -8,8 +8,10 @@
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-face-aframe.prod.js"></script>
   
+  <!-- 引入 MediaPipe 相關相機、人臉與手部偵測模組 -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
     body {
@@ -90,7 +92,7 @@
       transform: scale(0.95);
     }
 
-    /* 💡 完美融合：強化版美顏磨皮美膚 + 鏡像翻轉（解決左右動作相反與畫面歪斜） */
+    /* 💡 美顏磨皮美膚 + 鏡像翻轉 */
     video, canvas {
       position: absolute !important;
       top: 50% !important;
@@ -107,8 +109,7 @@
 
   <div id="custom-banner">🐾 奶牛貓 AR 互動美顏濾鏡</div>
   
-  <!-- 互動說明提示文字 -->
-  <div id="interaction-tip">✨ 試著「點擊畫面」或切換動作看看驚喜互動！</div>
+  <div id="interaction-tip">✨ 試著「張開嘴巴」、「張開手掌」或「點擊畫面」解鎖驚喜互動！</div>
 
   <div id="controls">
     <button class="btn" id="record-btn">開始錄影</button>
@@ -129,7 +130,7 @@
       <video id="v-mouth-3" src="drink_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
 
       <!-- 張開手掌 (2部) -->
-      <video id="v-hand-1" src="cry_cat_animation.mp4.mp4" loop crossorigin="anonymous" playsinline></video>
+      <video id="v-hand-1" src="cry_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
       <video id="v-hand-2" src="work_cat_animation.mp4" loop crossorigin="anonymous" playsinline></video>
     </a-assets>
 
@@ -141,7 +142,6 @@
   </a-scene>
 
   <script>
-    // 1. 組織 9 部正確檔名的互動影片分類結構
     const animationVideos = {
       normal: ['#v-normal-1', '#v-normal-2', '#v-normal-3', '#v-normal-4'],
       mouthOpen: ['#v-mouth-1', '#v-mouth-2', '#v-mouth-3'],
@@ -152,25 +152,22 @@
     let currentIndex = 0;
     const videoPlane = document.querySelector('#cat-video-plane');
 
-    // 2. 切換影片特效函式
     function switchAnimation(category, index = 0) {
       currentCategory = category;
       currentIndex = index % animationVideos[category].length;
       const targetVideoSelector = animationVideos[category][currentIndex];
       
-      // 停止所有影片
       document.querySelectorAll('a-assets video').forEach(v => v.pause());
       
-      // 設定並播放新影片
       videoPlane.setAttribute('src', targetVideoSelector);
       const activeVideoEl = document.querySelector(targetVideoSelector);
       if (activeVideoEl) {
-        activeVideoEl.play().catch(e => console.log("自動播放限制:", e));
+        activeVideoEl.currentTime = 0;
+        activeVideoEl.play().catch(e => console.log("播放被瀏覽器阻擋:", e));
       }
-      console.log(`已切換至特效: ${targetVideoSelector}`);
     }
 
-    // 3. 點擊畫面任意處即可順暢循環切換不同分類與影片
+    // 點擊畫面循環切換
     window.addEventListener('click', () => {
       let categories = ['normal', 'mouthOpen', 'handPalm'];
       let catIndex = categories.indexOf(currentCategory);
@@ -184,12 +181,91 @@
       switchAnimation(categories[catIndex], currentIndex);
     });
 
-    // 初始化預設播放第一部
+    // 初始化與預載影片
     window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('a-assets video').forEach(v => {
+        v.load();
+      });
       switchAnimation('normal', 0);
     });
 
-    // 4. 錄影與拍照合成畫布邏輯
+    // 1. MediaPipe Face Mesh（偵測張開嘴巴）
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    faceMesh.onResults(results => {
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const landmarks = results.multiFaceLandmarks[0];
+        const upperLip = landmarks[13];
+        const lowerLip = landmarks[14];
+        const mouthOpenDistance = Math.abs(upperLip.y - lowerLip.y);
+
+        if (mouthOpenDistance > 0.05 && currentCategory !== 'mouthOpen') {
+          switchAnimation('mouthOpen', Math.floor(Math.random() * animationVideos.mouthOpen.length));
+        }
+      }
+    });
+
+    // 2. MediaPipe Hands（偵測張開手掌）
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    hands.onResults(results => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        // 透過計算手指尖端（指尖 4, 8, 12, 16, 20）與手腕(0)的距離來判斷手掌是否張開
+        let extendedFingers = 0;
+        const wrist = landmarks[0];
+        const tips = [4, 8, 12, 16, 20];
+        const pips = [2, 6, 10, 14, 18];
+
+        for (let i = 0; i < 5; i++) {
+          // 簡易比較指尖與對應關節到手腕的距離
+          const tipDist = Math.hypot(landmarks[tips[i]].x - wrist.x, landmarks[tips[i]].y - wrist.y);
+          const pipDist = Math.hypot(landmarks[pips[i]].x - wrist.x, landmarks[pips[i]].y - wrist.y);
+          if (tipDist > pipDist * 1.2) {
+            extendedFingers++;
+          }
+        }
+
+        // 當偵測到 4隻或5隻手指伸直（張開手掌）時切換至手掌系列影片
+        if (extendedFingers >= 4 && currentCategory !== 'handPalm') {
+          switchAnimation('handPalm', Math.floor(Math.random() * animationVideos.handPalm.length));
+        }
+      }
+    });
+
+    // 3. 整合相機串流，同時餵給 FaceMesh 與 Hands 進行雙模組運算
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const videoElement = document.querySelector('video');
+        if (videoElement) {
+          const camera = new Camera(videoElement, {
+            onFrame: async () => {
+              await faceMesh.send({ image: videoElement });
+              await hands.send({ image: videoElement });
+            },
+            width: 1280,
+            height: 720
+          });
+          camera.start().catch(e => console.log("相機啟動提示:", e));
+        }
+      }, 1500);
+    });
+
+    // 錄影與拍照功能
     const recordBtn = document.getElementById('record-btn');
     let mediaRecorder;
     let recordedChunks = [];
@@ -237,7 +313,6 @@
       recordBtn.style.background = 'linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%)';
     }
 
-    // 拍照存檔功能
     document.getElementById('snapshot-btn').addEventListener('click', () => {
       const arCanvas = document.querySelector('canvas');
       if (!arCanvas) return;
