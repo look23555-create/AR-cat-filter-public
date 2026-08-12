@@ -43,7 +43,7 @@ button:active{transform:scale(.97)} button:disabled{opacity:.45}
 <div id="topBar"><div id="brand">🐱 AR 貓咪</div><div id="topActions"><button id="soundBtn" class="miniAction" title="關閉聲音" aria-label="關閉聲音">🔊</button><div id="livePill"><span id="liveDot"></span><span id="liveText">準備中</span></div></div></div>
 <div id="interactionGuide"><div id="guideTitle">🐱 跟貓咪互動</div><div id="guideText">👄 張嘴・✋ 張開手掌・貓咪會自動回應</div></div>
 <div id="captureBar"><button id="switchBtn" title="切換鏡頭" aria-label="切換鏡頭">🔄</button><button id="recordBtn" class="captureBtn" title="開始錄影" aria-label="開始錄影">●</button><button id="snapshotBtn" class="captureBtn" title="拍照" aria-label="拍照">📸</button><button id="downloadBtn" class="miniAction hidden" title="儲存影片到手機" aria-label="儲存影片到手機">💾</button></div>
-<div id="startOverlay"><div id="startBox"><h1>🐱 AR 貓咪</h1><p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p><button id="startBtn">📷 開始玩</button><div style="margin-top:10px;color:#aaa;font-size:12px">首次使用請允許相機權限；部分互動會有對應音效</div></div></div>
+<div id="startOverlay"><div id="startBox"><h1>🐱 AR 貓咪</h1><p>把臉放進畫面，貓咪會自動跟著你。<br>張嘴、張開手掌，就能觸發不同互動。</p><button id="startBtn">📷 開始玩</button><div style="margin-top:10px;color:#aaa;font-size:12px">首次使用請允許相機權限；貓咪會自動連續播放。拍照後可儲存或分享。</div></div></div>
 </div>
 <video id="catVideoA" muted playsinline webkit-playsinline preload="auto"></video>
 <video id="catVideoB" muted playsinline webkit-playsinline preload="auto"></video>
@@ -172,6 +172,14 @@ function waitVideoReady(player,timeout=3200){
   if(player.readyState>=2)return Promise.resolve(true);
   return new Promise(resolve=>{let done=false;const finish=ok=>{if(done)return;done=true;player.removeEventListener('loadeddata',onLoad);player.removeEventListener('error',onErr);clearTimeout(timer);resolve(ok)};const onLoad=()=>finish(true),onErr=()=>finish(false),timer=setTimeout(()=>finish(false),timeout);player.addEventListener('loadeddata',onLoad,{once:true});player.addEventListener('error',onErr,{once:true})})
 }
+function handleCatEnded(player){
+  if(!arStarted || player!==activeCat) return;
+  // 只有「沒有互動動作」時，普通影片播完才自動接下一部。
+  if(currentState !== 'normal' || switchBusy) return;
+  const next=nextNormal();
+  playCat(next,'normal');
+}
+
 async function playCat(name,reason='normal'){
   if(!name)return;
   const token=++videoToken;
@@ -249,14 +257,35 @@ async function saveBlob(blob,filename){
   if(!blob)return;
   const file=new File([blob],filename,{type:blob.type||'application/octet-stream'});
   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({title:'AR 貓咪',files:[file]});return}catch(e){if(e.name==='AbortError')return}
+    try{await navigator.share({title:'AR 貓咪',text:'🐱 AR 貓咪',files:[file]});return}catch(e){if(e.name==='AbortError')return}
   }
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
-  if(/iPhone|iPad|iPod/i.test(navigator.userAgent)){setTimeout(()=>window.open(url,'_blank','noopener,noreferrer'),250)}
-  setTimeout(()=>URL.revokeObjectURL(url),10000)
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.rel='noopener';a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  // iOS Safari does not always honor download=. Open the media so the user can use the native Save/Share action.
+  if(/iPhone|iPad|iPod/i.test(navigator.userAgent)) setTimeout(()=>window.open(url,'_blank','noopener,noreferrer'),250);
+  setTimeout(()=>URL.revokeObjectURL(url),15000)
 }
 async function saveVideo(){if(!recordedBlob){alert('請先錄製一段影片。');return}const ext=recordedBlob.type.includes('mp4')?'mp4':'webm';await saveBlob(recordedBlob,`AR_cat_${Date.now()}.${ext}`)}
-async function snapshot(){if(!arStarted)return;updateRecordCanvas();recordCanvas.toBlob(async blob=>{if(blob)await saveBlob(blob,`AR_cat_${Date.now()}.jpg`)},'image/jpeg',.95)}
+function showToast(message){
+  let t=document.getElementById('uxToast');
+  if(!t){t=document.createElement('div');t.id='uxToast';t.style.cssText='position:absolute;z-index:50;left:50%;bottom:max(96px,env(safe-area-inset-bottom) + 88px);transform:translateX(-50%);padding:10px 15px;border-radius:999px;background:rgba(0,0,0,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:13px;font-weight:800;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s';document.getElementById('stage').appendChild(t)}
+  t.textContent=message;t.style.opacity='1';clearTimeout(t._timer);t._timer=setTimeout(()=>t.style.opacity='0',1800);
+}
+async function snapshot(){
+  if(!arStarted)return;
+  updateRecordCanvas();
+  recordCanvas.toBlob(async blob=>{
+    if(!blob)return;
+    const file=new File([blob],`AR_cat_${Date.now()}.jpg`,{type:'image/jpeg'});
+    // Mobile browsers cannot silently write to the Photos library from a normal web page.
+    // Web Share opens the native share sheet, where iOS/Android can choose Photos/Google Photos or a group chat.
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{await navigator.share({title:'AR 貓咪照片',text:'🐱 我的 AR 貓咪照片',files:[file]});showToast('📸 已開啟分享／儲存選單');return}catch(e){if(e.name==='AbortError')return}
+    }
+    await saveBlob(blob,file.name);
+    showToast(/iPhone|iPad|iPod/i.test(navigator.userAgent)?'📸 請從開啟的圖片長按儲存':'📸 照片已準備儲存');
+  },'image/jpeg',.95);
+}
 
 async function detectLoop(){
   if(!arStarted||detectBusy)return;
@@ -278,13 +307,13 @@ const faceMesh=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediap
 faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.55,minTrackingConfidence:.55});faceMesh.onResults(r=>{faceLandmarks=r.multiFaceLandmarks?.[0]||null});
 const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.55});hands.onResults(r=>{handLandmarks=r.multiHandLandmarks?.[0]||null});
 
-catPlayers.forEach(v=>{v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');});
+catPlayers.forEach(v=>{v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.addEventListener('ended',()=>handleCatEnded(v));});
 $('startBtn').onclick=async()=>{
   $('startBtn').disabled=true;$('startBtn').textContent='⏳ 啟動中…';
   try{await startCamera();await initAudio();arStarted=true;$('startOverlay').classList.add('hidden');currentState='normal';candidateState='normal';candidateCount=0;await playCat(nextNormal(),'normal');renderLoop();interactionLoop();setInterval(detectLoop,60);log('AR ready')}catch(e){$('startBtn').disabled=false;$('startBtn').textContent='📷 開始玩';$('liveText').textContent='啟動失敗';alert('啟動失敗：請確認 HTTPS、相機權限與瀏覽器版本。')}};
 $('soundBtn').onclick=toggleSound;$('recordBtn').onclick=toggleRecording;$('snapshotBtn').onclick=snapshot;$('downloadBtn').onclick=saveVideo;$('switchBtn').onclick=switchCamera;
 window.addEventListener('resize',resizeCanvas);window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,350));
 
-/* 不使用任何貓耳繪製。音效檔案需與 index.html 同一層。 */
+/* 不使用任何貓耳繪製。普通狀態影片播完會自動接下一部；進入嘴巴／手掌互動後才切換互動影片。音效檔案需與 index.html 同一層。 */
 </script>
 </body></html>
